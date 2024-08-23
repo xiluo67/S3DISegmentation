@@ -70,7 +70,7 @@ def transform_point(point, model_matrix, view_matrix, projection_matrix):
     return np.transpose(ndc_coords)
 
 # Pre-define the view params (location, view angle... ,etc.)
-width, height = 224, 224
+width, height = 2048, 1024
 fov = np.pi / 3.0  # 60 degrees
 near, far = 0.1, 1000
 aspect_ratio = width / height
@@ -140,7 +140,7 @@ def do_perspective_projection(points_3d, label, target_type, save_image, save_la
     image[y_coords[valid_indices], x_coords[valid_indices]] = colors[valid_indices]
 
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    cv2.imwrite(save_image+'.png', image_rgb)
+    cv2.imwrite(save_image+'.jpg', image_rgb)
 
     proj_l[y_coords[valid_indices], x_coords[valid_indices]] = labels[valid_indices].reshape(-1)
     np.savetxt(save_label, proj_l)

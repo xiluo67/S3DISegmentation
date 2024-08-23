@@ -408,27 +408,27 @@ for i in np.arange(len(scan_files)):
         point_cloud_2_birdseye(save_image=save_image, save_label=save_label, height_range=height_range_4, points=points,
                                R=R, G=G, B=B, label=label)
     elif (name == "PP"):
-        save_label = "/media/rosie/KINGSTON/research/PP/label/1_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_label = "/media/rosie/KINGSTON/Gen_image/PP/label/1_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/rosie/KINGSTON/research/PP/image/1_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_image = "/media/rosie/KINGSTON/Gen_image/PP/image/1_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3]
         do_perspective_projection(points_3d=scan, label=label, target_type="left", save_image=save_image,
                                   save_label=save_label)
 
-        save_label = "/media/rosie/KINGSTON/research/PP/label/2_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_label = "/media/rosie/KINGSTON/Gen_image/PP/label/2_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/rosie/KINGSTON/research/PP/image/2_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_image = "/media/rosie/KINGSTON/Gen_image/PP/image/2_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3]
         do_perspective_projection(points_3d=scan, label=label, target_type="right", save_image=save_image, save_label=save_label)
 
-        save_label = "/media/rosie/KINGSTON/research/PP/label/3_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_label = "/media/rosie/KINGSTON/Gen_image/PP/label/3_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/rosie/KINGSTON/research/PP/image/3_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_image = "/media/rosie/KINGSTON/Gen_image/PP/image/3_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3]
         do_perspective_projection(points_3d=scan, label=label, target_type="forward", save_image=save_image, save_label=save_label)
 
-        save_label = "/media/rosie/KINGSTON/research/PP/label/4_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_label = "/media/rosie/KINGSTON/Gen_image/PP/label/4_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/rosie/KINGSTON/research/PP/image/4_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_image = "/media/rosie/KINGSTON/Gen_image/PP/image/4_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3]
         do_perspective_projection(points_3d=scan, label=label, target_type="back", save_image=save_image, save_label=save_label)

@@ -10,8 +10,43 @@ import albumentations.pytorch as A_pytorch
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
 import torchvision.models as models
+# Visualize the testing results
+import matplotlib.pyplot as plt
+import cv2
+import torch.nn.functional as F
+torch.cuda.empty_cache()
+
+
+def visualize_predictions(images, masks, preds, idx):
+    plt.figure(figsize=(15, 5))
+
+    # Original Image
+    plt.subplot(1, 3, 1)
+    img = images[idx].cpu().permute(1, 2, 0).numpy()
+    if img.max() > 1:  # Assuming image is in [0, 255] range
+        img = img / 255.0  # Normalize to [0, 1]
+    plt.imshow(img)
+    plt.title("Image")
+    plt.axis('off')
+
+    # Ground Truth Mask
+    plt.subplot(1, 3, 2)
+    mask = masks[idx].cpu().numpy()
+    plt.imshow(mask, cmap='gray')
+    plt.title("Ground Truth")
+    plt.axis('off')
+
+    # Predicted Mask
+    plt.subplot(1, 3, 3)
+    pred = preds[idx].cpu().numpy()
+    plt.imshow(pred, cmap='gray')
+    plt.title("Prediction")
+    plt.axis('off')
+
+    plt.show()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cpu')
 # device = torch.device('cpu')
 def split_dataset(image_folder, mask_folder, train_ratio=0.6, val_ratio=0.2, test_ratio=0.2):
     image_files = [f for f in os.listdir(image_folder) if f.endswith('.png')]
@@ -61,7 +96,6 @@ class SegmentationDataset(Dataset):
         # print("image_tensor before:", image_np.shape)
         # Convert numpy arrays to tensors and ensure correct dimensions
         image_tensor = torch.from_numpy(image_np.numpy()).float() / 255.0  # [H, W, C] -> [C, H, W]
-
         mask_tensor = torch.from_numpy(mask.numpy()).long()  # Ensure mask is in correct format
         # print(" mask tensor after:", mask_tensor.shape)
         return {'image': image_tensor, 'mask': mask_tensor}
@@ -81,19 +115,6 @@ def get_transforms():
         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         A_pytorch.ToTensorV2()  # Ensure correct import and usage
     ], p=1.0, is_check_shapes=False)
-# def get_transforms():
-#     return A.Compose([
-#         A.HorizontalFlip(),
-#         A.RandomRotate90(),
-#         A.OneOf([
-#             A.RandomBrightnessContrast(),
-#             A.HueSaturationValue()
-#         ], p=0.3),
-#         A.Resize(height=224, width=224, always_apply=True),
-#         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-#         A.pytorch.ToTensorV2()
-#     ], p=1.0, is_check_shapes=False)
-
 
 
 class EarlyStopping:
@@ -155,9 +176,98 @@ class VGGSegmentation(nn.Module):
         x = self.decoder(x)
         return x
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class UNet(nn.Module):
+    def __init__(self, num_classes=14):
+        super(UNet, self).__init__()
+
+        # Encoder (Downsampling path)
+        self.encoder1 = self.conv_block(3, 64)  # Output: [B, 64, 1024, 2048]
+        self.encoder2 = self.conv_block(64, 128)  # Output: [B, 128, 512, 1024]
+        self.encoder3 = self.conv_block(128, 256)  # Output: [B, 256, 256, 512]
+        self.encoder4 = self.conv_block(256, 512)  # Output: [B, 512, 128, 256]
+        self.encoder5 = self.conv_block(512, 1024)  # Output: [B, 1024, 64, 128]
+
+        # Decoder (Upsampling path)
+        self.upconv5 = self.upconv_block(1024, 512)  # Output: [B, 512, 128, 256]
+        self.upconv4 = self.upconv_block(512 + 512, 256)  # Output: [B, 256, 256, 512]
+        self.upconv3 = self.upconv_block(256 + 256, 128)  # Output: [B, 128, 512, 1024]
+        self.upconv2 = self.upconv_block(128 + 128, 64)   # Output: [B, 64, 1024, 2048]
+
+        # Final conv layer to produce the output segmentation map
+        self.final_conv = nn.Conv2d(128, num_classes, kernel_size=1)  # Output: [B, num_classes, 1024, 2048]
+
+    def conv_block(self, in_channels, out_channels):
+        block = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True)
+        )
+        return block
+
+    def upconv_block(self, in_channels, out_channels):
+        block = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        )
+        return block
+
+    def forward(self, x):
+        print(f"Input shape: {x.shape}")
+
+        # Encoding path
+        e1 = self.encoder1(x)  # [B, 64, 1024, 2048]
+        print(f"After encoder1: {e1.shape}")
+        e2 = self.encoder2(F.max_pool2d(e1, 2))  # [B, 128, 512, 1024]
+        print(f"After encoder2: {e2.shape}")
+        e3 = self.encoder3(F.max_pool2d(e2, 2))  # [B, 256, 256, 512]
+        print(f"After encoder3: {e3.shape}")
+        e4 = self.encoder4(F.max_pool2d(e3, 2))  # [B, 512, 128, 256]
+        print(f"After encoder4: {e4.shape}")
+        e5 = self.encoder5(F.max_pool2d(e4, 2))  # [B, 1024, 64, 128]
+        print(f"After encoder5: {e5.shape}")
+
+        # Decoding path
+        d5 = self.upconv5(e5)  # [B, 512, 128, 256]
+        print(f"After upconv5: {d5.shape}")
+        d5 = torch.cat((d5, e4), dim=1)  # Concatenate skip connection
+        print(f"After concatenating e4: {d5.shape}")
+        d4 = self.upconv4(d5)  # [B, 256, 256, 512]
+        print(f"After upconv4: {d4.shape}")
+        d4 = torch.cat((d4, e3), dim=1)  # Concatenate skip connection
+        print(f"After concatenating e3: {d4.shape}")
+        d3 = self.upconv3(d4)  # [B, 128, 512, 1024]
+        print(f"After upconv3: {d3.shape}")
+        d3 = torch.cat((d3, e2), dim=1)  # Concatenate skip connection
+        print(f"After concatenating e2: {d3.shape}")
+        d2 = self.upconv2(d3)  # [B, 64, 1024, 2048]
+        print(f"After upconv2: {d2.shape}")
+        d2 = torch.cat((d2, e1), dim=1)  # Concatenate skip connection
+        print(f"After concatenating e1: {d2.shape}")
+
+        out = self.final_conv(d2)  # [B, num_classes, 1024, 2048]
+        print(f"Output shape: {out.shape}")
+
+        return out
+
 
 def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=25, patience=5):
     early_stopping = EarlyStopping(patience=patience)
+
+    train_losses = []
+    val_losses = []
+    train_accuracies = []
+    val_accuracies = []
+    # Initialize interactive mode for non-blocking plots
+    plt.ion()
+    fig, ax = plt.subplots(2, 1, figsize=(10, 10))
 
     for epoch in range(num_epochs):
         model.train()
@@ -170,8 +280,11 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
             masks = batch['mask'].to(device)
 
             optimizer.zero_grad()
+            print("image shape:", {images.shape})
             outputs = model(images)
 
+            print(outputs.shape)
+            print(masks.shape)
             loss = criterion(outputs, masks.long())
             loss.backward()
             optimizer.step()
@@ -185,6 +298,9 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
 
         epoch_loss = running_loss / len(train_dataloader.dataset)
         train_accuracy = correct_train / total_train * 100
+
+        train_losses.append(epoch_loss)
+        train_accuracies.append(train_accuracy)
         print(f'Epoch {epoch + 1}/{num_epochs} Training Loss: {epoch_loss:.4f} Accuracy: {train_accuracy:.2f}%')
 
         # Validation
@@ -209,19 +325,45 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
 
         val_loss /= len(val_dataloader.dataset)
         val_accuracy = correct_val / total_val * 100
+
+        val_losses.append(val_loss)
+        val_accuracies.append(val_accuracy)
         print(f'Validation Loss: {val_loss:.4f} Accuracy: {val_accuracy:.2f}%')
+
+        # Update the plots
+        ax[0].clear()
+        ax[0].plot(range(epoch + 1), train_losses, label='Train Loss')
+        ax[0].plot(range(epoch + 1), val_losses, label='Validation Loss')
+        ax[0].set_xlabel('Epoch')
+        ax[0].set_ylabel('Loss')
+        ax[0].legend()
+        ax[0].set_title('Training and Validation Loss')
+
+        ax[1].clear()
+        ax[1].plot(range(epoch + 1), train_accuracies, label='Train Accuracy')
+        ax[1].plot(range(epoch + 1), val_accuracies, label='Validation Accuracy')
+        ax[1].set_xlabel('Epoch')
+        ax[1].set_ylabel('Accuracy (%)')
+        ax[1].legend()
+        ax[1].set_title('Training and Validation Accuracy')
+
+        plt.draw()
+        plt.pause(0.1)  # Pause to allow plot to update
 
         # Check early stopping
         early_stopping(val_loss)
         if early_stopping.early_stop:
             print("Early stopping")
             break
-
+    plt.ioff()  # Turn off interactive mode
+    plt.show()  # Show the final plot
     return model
 
 # Split the dataset
 image_folder = '/media/rosie/KINGSTON/research/PP/image/'
 mask_folder = '/media/rosie/KINGSTON/research/PP/label/'
+# image_folder = '/media/rosie/KINGSTON/Gen_image/PP/image/'
+# mask_folder = '/media/rosie/KINGSTON/Gen_image/PP/label/'
 
 train_files, val_files, test_files = split_dataset(image_folder, mask_folder)
 
@@ -238,9 +380,166 @@ sample = train_dataset[0]
 # print("Image shape in dataset:", sample['image'].shape)  # Should print: torch.Size([3, 224, 224])
 # print("Mask shape:", sample['mask'].shape)   # Should be consistent with the number of classes
 num_classes = 14  # Example number of classes
-model = VGGSegmentation(num_classes=num_classes).to(device)
+train = 1
+if train:
+    # model = VGGSegmentation(num_classes=num_classes).to(device)
+    model = UNet(num_classes=num_classes).to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=1.2e-4)
 
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    model = train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=200, patience=7)
+    plt.close()
+    # Ensure the log directory exists
+    log_dir = "./log"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
 
-model = train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=65, patience=7)
+    # Generate the timestamp
+    from datetime import datetime
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Save the model with timestamp in the filename
+    model_filename = f"model_{timestamp}_" + ".pth"
+    model_path = os.path.join(log_dir, model_filename)
+    torch.save(model.state_dict(), model_path)
+
+    print(f"Model saved to {model_path}")
+
+else:
+
+    model = VGGSegmentation(num_classes).to(device)
+    # model = UNet(num_classes=num_classes).to(device)
+    model.load_state_dict(torch.load('./log/SP.pth'))
+    model.eval()
+
+    # To store results
+    dice_scores = []
+    iou_scores = []
+    accuracy_scores = []
+
+    # Iterate through the dataloader
+    for batch_index, batch in enumerate(val_dataloader):
+        images = batch['image'].to(device)
+        masks = batch['mask'].to(device)  # Shape: [batch_size, height, width]
+
+        # Get model predictions
+        outputs = model(images)
+
+        # Convert outputs to class predictions
+        preds = torch.argmax(outputs, dim=1)  # Shape: [batch_size, height, width]
+
+        # Calculate Dice score, IoU, and accuracy for each class
+        for cls in range(num_classes):
+            pred_cls = (preds == cls).float()  # Binary mask for predictions
+            mask_cls = (masks == cls).float()  # Binary mask for ground truth
+
+            # Ensure shapes match before calculation
+            if pred_cls.shape != mask_cls.shape:
+                print(f"Batch {batch_index} - Shape mismatch for class {cls}:")
+                print(f"Pred_cls Shape: {pred_cls.shape}")
+                print(f"Mask_cls Shape: {mask_cls.shape}")
+
+                # Resize pred_cls and mask_cls to match shapes if necessary
+                pred_cls = F.interpolate(pred_cls.unsqueeze(1), size=mask_cls.shape[1:], mode='bilinear',
+                                         align_corners=False).squeeze(1)
+                mask_cls = F.interpolate(mask_cls.unsqueeze(1), size=pred_cls.shape[1:], mode='bilinear',
+                                         align_corners=False).squeeze(1)
+
+                print(f"Batch {batch_index} - Resized Pred_cls Shape: {pred_cls.shape}")
+                print(f"Batch {batch_index} - Resized Mask_cls Shape: {mask_cls.shape}")
+
+            # Calculate Dice score
+            intersection = torch.sum(pred_cls * mask_cls)
+            dice = (2. * intersection) / (torch.sum(pred_cls) + torch.sum(mask_cls) + 1e-8)
+            iou = intersection / (torch.sum(pred_cls) + torch.sum(mask_cls) - intersection + 1e-8)
+
+            # Calculate accuracy
+            correct_pixels = torch.sum(pred_cls * mask_cls)
+            total_pixels = torch.sum(mask_cls)
+            accuracy = correct_pixels / (total_pixels + 1e-8)  # Avoid division by zero
+
+            # Append scores
+            dice_scores.append(dice.item())
+            iou_scores.append(iou.item())
+            accuracy_scores.append(accuracy.item())
+
+    # Average Dice, IoU, and accuracy scores across all classes
+    avg_dice = sum(dice_scores) / (len(dice_scores) if dice_scores else 1)
+    avg_iou = sum(iou_scores) / (len(iou_scores) if iou_scores else 1)
+    avg_accuracy = sum(accuracy_scores) / (len(accuracy_scores) if accuracy_scores else 1)
+
+    print(f"Average Dice Score: {avg_dice:.4f}")
+    print(f"Average IoU Score: {avg_iou:.4f}")
+    print(f"Average Accuracy: {avg_accuracy:.4f}")
+
+# Function to convert tensor to numpy array for plotting
+def tensor_to_numpy(tensor):
+    tensor = tensor.cpu().numpy()
+    if tensor.ndim == 4:  # For batch of images: [batch_size, channels, height, width]
+        tensor = tensor.transpose(0, 2, 3, 1)  # Convert to [batch_size, height, width, channels]
+        return tensor
+    elif tensor.ndim == 3:  # For single image or mask: [channels, height, width] or [height, width]
+        if tensor.shape[0] in [1, 3]:  # Single channel or RGB image
+            return tensor.transpose(1, 2, 0)  # Convert to [height, width, channels]
+        else:
+            return tensor.transpose(1, 2, 0)  # Convert to [height, width, 1]
+    elif tensor.ndim == 2:  # For masks or predictions: [height, width]
+        return tensor[..., np.newaxis]  # Add an extra dimension for consistent shape
+    else:
+        raise ValueError("Unsupported tensor shape")
+
+
+# Plot images, masks, and predictions
+def plot_results(images, masks, preds, num_samples=4):
+    fig, axes = plt.subplots(num_samples, 3, figsize=(15, num_samples * 5))
+
+    # Adjust spacing
+    plt.subplots_adjust(hspace=0.5, wspace=0.3)  # Adjust vertical and horizontal spacing
+
+    plt.subplots_adjust(
+        top=0.936,
+        bottom=0.033,
+        left=0.015,
+        right=0.985,
+        hspace=0.357,
+        wspace=0.0
+    )
+
+    for i in range(num_samples):
+        # Image
+        ax = axes[i, 0]
+        ax.imshow(tensor_to_numpy(images[i] * 255), interpolation='none')
+        ax.set_title("Image", fontsize=6, fontweight='light')
+        ax.axis('off')
+
+        # Mask
+        ax = axes[i, 1]
+        ax.imshow(tensor_to_numpy(masks[i]), cmap='gray', interpolation='none')
+        ax.set_title("Mask", fontsize=6, fontweight='light')
+        ax.axis('off')
+
+        # Prediction
+        ax = axes[i, 2]
+        ax.imshow(tensor_to_numpy(preds[i]), cmap='gray', interpolation='none')
+        ax.set_title("Prediction", fontsize=6, fontweight='light')
+        ax.axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+
+# Get a batch of data from the validation dataloader
+def get_val_batch(dataloader):
+    for batch in dataloader:
+        images = batch['image'].to(device)
+        masks = batch['mask'].to(device)  # Shape: [batch_size, height, width]
+
+        with torch.no_grad():
+            preds = model(images)
+        preds = torch.argmax(preds, dim=1)  # Assuming the output is logits
+        return images, masks, preds
+
+# Fetch a batch and plot
+images, masks, preds = get_val_batch(val_dataloader)
+plot_results(images, masks, preds)
