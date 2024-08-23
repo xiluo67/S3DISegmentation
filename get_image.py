@@ -30,7 +30,7 @@ def find_txt_files(base_dir):
 
 
 # Define the base directory
-base_dir = '/media/rosie/KINGSTON/Dataset_2/Stanford3dDataset_v1.2_Aligned_Version/'
+base_dir = '/media/xi/KINGSTON/Dataset_2/Stanford3dDataset_v1.2_Aligned_Version/'
 
 # Find all .txt files
 scan_files, scan_labels = find_txt_files(base_dir)
@@ -68,9 +68,18 @@ def do_range_projection(points, proj_fov_up, proj_fov_down, save_image, save_lab
     depth_points[:, 2] = scan_z - np.mean(scan_z)
     depth = np.linalg.norm(depth_points, 2, axis=1)
     # get angles of all points
-    yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0])
-    pitch = np.arcsin(depth_points[:, 2] / depth)
-
+    if gen == 1:
+        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0])
+        pitch = np.arcsin(depth_points[:, 2] / depth)
+    elif gen == 2:
+        yaw = -np.arctan2(depth_points[:, 0], depth_points[:, 1])
+        pitch = np.arcsin(depth_points[:, 2] / depth)
+    elif gen == 3:
+        yaw = np.arctan2(depth_points[:, 1], depth_points[:, 0])
+        pitch = np.arcsin(depth_points[:, 2] / depth)
+    elif gen == 4:
+        yaw = np.arctan2(depth_points[:, 0], depth_points[:, 1])
+        pitch = np.arcsin(depth_points[:, 2] / depth)
     # get projections in image coords
     proj_x = 0.5 * (yaw / np.pi + 1.0)  # in [0.0, 1.0]
     proj_y = 1.0 - (pitch + abs(fov_down)) / fov  # in [0.0, 1.0]
@@ -121,7 +130,7 @@ def do_range_projection(points, proj_fov_up, proj_fov_down, save_image, save_lab
     num_colors = np.max(proj_l) + 1
 
     # Define a colormap with the specified number of colors
-    base_colormap = plt.colormaps.get_cmap('viridis')
+    base_colormap = plt.get_cmap('viridis')
     colormap = base_colormap(np.linspace(0, 1, num_colors))
     norm = mcolors.Normalize(vmin=np.min(proj_l), vmax=np.max(proj_l))
     colorized_image = mcolors.ListedColormap(colormap)(norm(proj_l))
@@ -140,7 +149,7 @@ def do_range_projection(points, proj_fov_up, proj_fov_down, save_image, save_lab
     plt.close()
     plt.imshow(proj)
     plt.axis('off')
-    plt.savefig( save_image+'.png', bbox_inches='tight', pad_inches=0)
+    plt.savefig(save_image+'.png', bbox_inches='tight', pad_inches=0)
     plt.close()
 
 def scale_to_255(a, min, max, dtype=np.uint8):
@@ -354,7 +363,7 @@ def point_cloud_2_birdseye(save_image, save_label, height_range, points, R,G,B,l
 
 from PP import *
 
-name = "PP"
+name = "SP"
 # if all goes well, open point cloud
 for i in np.arange(len(scan_files)):
     scan_path = scan_files[i]
@@ -370,9 +379,34 @@ for i in np.arange(len(scan_files)):
     B = scan[:, 5]  # get B
     label = np.loadtxt(label_path, dtype=np.float32)
     if (name == "SP"):
-        save_label = "/media/rosie/KINGSTON/research/SP/label/" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3] + '.label'
-        save_image= "/media/rosie/KINGSTON/research/SP/image/" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3]
+        gen = 1
+        save_label = "/media/xi/KINGSTON/research/SP/label/1_" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3] + '.label'
+        save_image= "/media/xi/KINGSTON/research/SP/image/1_" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3]
         do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110, proj_fov_down=-110, proj_W=224,
+                            proj_H=224, R=R, G=G, B=B)
+        gen = 2
+        save_label = "/media/xi/KINGSTON/research/SP/label/2_" + scan_path.split(os.sep)[-4] + '_' + \
+                     scan_path.split(os.sep)[-3] + '.label'
+        save_image = "/media/xi/KINGSTON/research/SP/image/2_" + scan_path.split(os.sep)[-4] + '_' + \
+                     scan_path.split(os.sep)[-3]
+        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
+                            proj_fov_down=-110, proj_W=224,
+                            proj_H=224, R=R, G=G, B=B)
+        gen = 3
+        save_label = "/media/xi/KINGSTON/research/SP/label/3_" + scan_path.split(os.sep)[-4] + '_' + \
+                     scan_path.split(os.sep)[-3] + '.label'
+        save_image = "/media/xi/KINGSTON/research/SP/image/3_" + scan_path.split(os.sep)[-4] + '_' + \
+                     scan_path.split(os.sep)[-3]
+        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
+                            proj_fov_down=-110, proj_W=224,
+                            proj_H=224, R=R, G=G, B=B)
+        gen = 4
+        save_label = "/media/xi/KINGSTON/research/SP/label/4_" + scan_path.split(os.sep)[-4] + '_' + \
+                     scan_path.split(os.sep)[-3] + '.label'
+        save_image = "/media/xi/KINGSTON/research/SP/image/4_" + scan_path.split(os.sep)[-4] + '_' + \
+                     scan_path.split(os.sep)[-3]
+        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
+                            proj_fov_down=-110, proj_W=224,
                             proj_H=224, R=R, G=G, B=B)
     elif (name == "BEV"):
         height_range_1 = (np.min( points[:, 2]), np.max( points[:, 2]))
