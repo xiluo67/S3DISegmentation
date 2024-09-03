@@ -70,8 +70,8 @@ def transform_point(point, model_matrix, view_matrix, projection_matrix):
     return np.transpose(ndc_coords)
 
 # Pre-define the view params (location, view angle... ,etc.)
-width, height = 2048, 1024
-fov = np.pi / 3.0  # 60 degrees
+width, height = 256, 256
+fov = np.pi / 2.0  # 60 degrees
 near, far = 0.1, 1000
 aspect_ratio = width / height
 
@@ -81,17 +81,17 @@ def do_perspective_projection(points_3d, label, target_type, save_image, save_la
     Y = np.max(points_3d[:,2]) - np.min(points_3d[:,2])
     Z = np.max(points_3d[:,0]) - np.min(points_3d[:,0])
 
-    target = np.array([np.mean(points_3d[:,1]), np.mean(points_3d[:,2]), np.mean(points_3d[:,0])])
+    camera_position = np.array([np.mean(points_3d[:,1]), np.mean(points_3d[:,2]), np.mean(points_3d[:,0])])
     if (target_type == "left"):
-        camera_position = np.array([np.min(points_3d[:,1]), np.mean(points_3d[:,2]), np.mean(points_3d[:,0])])
+        target = np.array([np.min(points_3d[:,1]), np.mean(points_3d[:,2]), np.mean(points_3d[:,0])])
     elif (target_type == "right"):
-        camera_position = np.array(
+        target = np.array(
             [np.max(points_3d[:, 1]), np.mean(points_3d[:, 2]), np.mean(points_3d[:, 0])])
     elif (target_type == "forward"):
-        camera_position = np.array(
+        target = np.array(
             [np.mean(points_3d[:, 1]), np.mean(points_3d[:, 2]), np.min(points_3d[:, 0])])
     else:
-        camera_position = np.array(
+        target = np.array(
             [np.mean(points_3d[:, 1]), np.mean(points_3d[:, 2]), np.max(points_3d[:, 0])])
 
     up = np.array([0, 1, 0])
@@ -107,13 +107,12 @@ def do_perspective_projection(points_3d, label, target_type, save_image, save_la
                         np.ones((points_3d.shape[0], 1)), points_3d[:, 3:], label.reshape(-1, 1)))  # (x, y, z, w)
 
     # filter out the 3d points behind the camera and looking direction
-    # forward = np.float_(target - camera_position)
-    # forward /= np.linalg.norm(forward)
-    # dot_products = np.dot(points[:,0:3], forward)
-    # mask = dot_products > 0
-    # valid_points = points[mask]
+    forward = np.float_(target - camera_position)
+    forward /= np.linalg.norm(forward)
+    dot_products = np.dot((points[:, 0:3] - camera_position), forward)
+    mask = dot_products > 0
+    valid_points = points[mask]
 
-    valid_points = points
     # Transform the point through the whole pipeline
     new_coords = transform_point(np.transpose(valid_points), model_matrix, view_matrix, projection_matrix)
 
