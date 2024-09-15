@@ -30,7 +30,8 @@ def find_txt_files(base_dir):
 
 
 # Define the base directory
-base_dir = '/media/xi/KINGSTON/Dataset_2/Stanford3dDataset_v1.2_Aligned_Version/'
+# base_dir = '/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/'
+base_dir = '/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version_Test/'
 
 # Find all .txt files
 scan_files, scan_labels = find_txt_files(base_dir)
@@ -211,7 +212,7 @@ def BEV_Height(points, height_range, res, proj_W, proj_H):
 
     return im
 
-def point_cloud_2_birdseye(save_image, save_label, height_range, points, R,G,B,label, proj_W=224, proj_H=224, res=0.005):
+def point_cloud_2_birdseye(save_image, save_label, height_range, points, R,G,B,label, proj_W=512, proj_H=512, res=0.005):
     """ Creates an 2D birds eye view representation of the point cloud data.
     Args:
         points:     (numpy array)
@@ -342,7 +343,7 @@ def point_cloud_2_birdseye(save_image, save_label, height_range, points, R,G,B,l
 
     num_colors = np.max(proj_l) + 1
     # Define a colormap with the specified number of colors
-    base_colormap = plt.colormaps.get_cmap('viridis')
+    base_colormap = plt.get_cmap('viridis')
     colormap = base_colormap(np.linspace(0, 1, num_colors))
     norm = mcolors.Normalize(vmin=np.min(proj_l), vmax=np.max(proj_l))
     colorized_image = mcolors.ListedColormap(colormap)(norm(proj_l))
@@ -353,7 +354,7 @@ def point_cloud_2_birdseye(save_image, save_label, height_range, points, R,G,B,l
     plt.close()
     plt.imshow(proj)
     plt.axis('off')
-    plt.savefig(save_image+'.png', bbox_inches='tight', pad_inches=0)
+    plt.savefig(save_image+'.jpg', bbox_inches='tight', pad_inches=0)
     plt.close()
     np.savetxt(save_label, proj_l)
     # assing to images
@@ -380,89 +381,46 @@ for i in np.arange(len(scan_files)):
     label = np.loadtxt(label_path, dtype=np.float32)
     if (name == "SP"):
         gen = 1
-        save_label = "/media/xi/KINGSTON/research/SP/label/1_" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3] + '.label'
-        save_image= "/media/xi/KINGSTON/research/SP/image/1_" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3]
-        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110, proj_fov_down=-110, proj_W=224,
-                            proj_H=224, R=R, G=G, B=B)
+        save_label = "/home/xi/repo/research_Area5/SP/label/1_" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3] + '.label'
+        save_image= "/home/xi/repo/research_Area5/SP/image/1_" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3]
+        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110, proj_fov_down=-110, proj_W=512,
+                            proj_H=512, R=R, G=G, B=B)
         gen = 2
-        save_label = "/media/xi/KINGSTON/research/SP/label/2_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_label = "/home/xi/repo/research_Area5/SP/label/2_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/xi/KINGSTON/research/SP/image/2_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_image = "/home/xi/repo/research_Area5/SP/image/2_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3]
         do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
-                            proj_fov_down=-110, proj_W=224,
-                            proj_H=224, R=R, G=G, B=B)
+                            proj_fov_down=-110, proj_W=512,
+                            proj_H=512, R=R, G=G, B=B)
         gen = 3
-        save_label = "/media/xi/KINGSTON/research/SP/label/3_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_label = "/home/xi/repo/research_Area5/SP/label/3_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/xi/KINGSTON/research/SP/image/3_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_image = "/home/xi/repo/research_Area5/SP/image/3_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3]
         do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
-                            proj_fov_down=-110, proj_W=224,
-                            proj_H=224, R=R, G=G, B=B)
+                            proj_fov_down=-110, proj_W=512,
+                            proj_H=512, R=R, G=G, B=B)
         gen = 4
-        save_label = "/media/xi/KINGSTON/research/SP/label/4_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_label = "/home/xi/repo/research_Area5/SP/label/4_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/xi/KINGSTON/research/SP/image/4_" + scan_path.split(os.sep)[-4] + '_' + \
+        save_image = "/home/xi/repo/research_Area5/SP/image/4_" + scan_path.split(os.sep)[-4] + '_' + \
                      scan_path.split(os.sep)[-3]
         do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
-                            proj_fov_down=-110, proj_W=224,
-                            proj_H=224, R=R, G=G, B=B)
+                            proj_fov_down=-110, proj_W=512,
+                            proj_H=512, R=R, G=G, B=B)
+
     elif (name == "BEV"):
-        height_range_1 = (np.min( points[:, 2]), np.max( points[:, 2]))
-        save_label = "/media/rosie/KINGSTON/research/BEV/label/1_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/rosie/KINGSTON/research/BEV/image/1_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        point_cloud_2_birdseye(save_image=save_image, save_label=save_label, height_range=height_range_1, points = points, R=R,G=G,B=B,label=label)
+        hli = (np.max(points[:, 2]) - np.min(points[:, 2])) / 6
+        for i in range(6):
+            start = hli * i
+            end = hli * (i+1)
+            height_range = (np.min(points[:, 2]) + start, np.min(points[:, 2]) + end)
+            save_label = "/home/xi/repo/research_2/BEV/label/" + str(i) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                        scan_path.split(os.sep)[-3] + '.label'
+            save_image = "/home/xi/repo/research_2/BEV/image/" + str(i) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                        scan_path.split(os.sep)[-3]
+            point_cloud_2_birdseye(save_image=save_image, save_label=save_label, height_range=height_range, points=points, R=R,G=G,B=B,label=label)
 
-
-        height_range_2 = (np.min(points[:, 2]), np.mean(points[:, 2]))
-        save_label = "/media/rosie/KINGSTON/research/BEV/label/2_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/rosie/KINGSTON/research/BEV/image/2_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        point_cloud_2_birdseye(save_image=save_image, save_label=save_label, height_range=height_range_2, points=points,R=R,G=G,B=B,label=label)
-
-
-        height_range_3 = (np.mean(points[:, 2]), np.max(points[:, 2]))
-        save_label = "/media/rosie/KINGSTON/research/BEV/label/3_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/rosie/KINGSTON/research/BEV/image/3_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        point_cloud_2_birdseye(save_image=save_image, save_label=save_label, height_range=height_range_3, points=points,
-                               R=R, G=G, B=B, label=label)
-
-
-        height_range_4 = (np.min(points[:, 2]), np.max(points[:, 2])/4)
-        save_label = "/media/rosie/KINGSTON/research/BEV/label/4_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/rosie/KINGSTON/research/BEV/image/4_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        point_cloud_2_birdseye(save_image=save_image, save_label=save_label, height_range=height_range_4, points=points,
-                               R=R, G=G, B=B, label=label)
     elif (name == "PP"):
-        save_label = "/media/rosie/KINGSTON/Gen_image/PP/label/1_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/rosie/KINGSTON/Gen_image/PP/image/1_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        do_perspective_projection(points_3d=scan, label=label, target_type="left", save_image=save_image,
-                                  save_label=save_label)
-
-        save_label = "/media/rosie/KINGSTON/Gen_image/PP/label/2_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/rosie/KINGSTON/Gen_image/PP/image/2_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        do_perspective_projection(points_3d=scan, label=label, target_type="right", save_image=save_image, save_label=save_label)
-
-        save_label = "/media/rosie/KINGSTON/Gen_image/PP/label/3_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/rosie/KINGSTON/Gen_image/PP/image/3_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        do_perspective_projection(points_3d=scan, label=label, target_type="forward", save_image=save_image, save_label=save_label)
-
-        save_label = "/media/rosie/KINGSTON/Gen_image/PP/label/4_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/media/rosie/KINGSTON/Gen_image/PP/image/4_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        do_perspective_projection(points_3d=scan, label=label, target_type="back", save_image=save_image, save_label=save_label)
+        gen_the_pp_image(scan=scan, label=label, scan_path=scan_path)

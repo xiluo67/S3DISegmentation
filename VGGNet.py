@@ -147,8 +147,8 @@ class VGG(nn.Module):
 
 model = VGG(
     in_channels=3,
-    in_height=224,
-    in_width=224,
+    in_height=256,
+    in_width=256,
     architecture=VGG_types["VGG19"]
 )
 
@@ -167,14 +167,14 @@ optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
 
 # Set 2000 images for training purpose
 train_dataset = SemanticSegmentationDataset('path_to_data/images', 'path_to_data/labels', transform=transform)
-train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=8, shuffle=True)
+train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=100, shuffle=True)
 
 valid_dataset = SemanticSegmentationDataset('path_to_data/images', 'path_to_data/labels', transform=transform)
-valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset, batch_size=8, shuffle=False)
+valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset, batch_size=100, shuffle=False)
 
 # Load test data
 test_dataset = SemanticSegmentationDataset('path_to_data/test_images', 'path_to_data/test_labels', transform=transform)
-test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=8, shuffle=False)
+test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=100, shuffle=False)
 
 # Training loop
 num_epochs = 10

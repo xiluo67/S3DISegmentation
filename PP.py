@@ -4,7 +4,8 @@ import cv2
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import numpy as np
-from sympy.strategies.core import switch
+import os
+# from sympy.strategies.core import switch
 
 
 def look_at(camera_position, target, up):
@@ -70,31 +71,49 @@ def transform_point(point, model_matrix, view_matrix, projection_matrix):
     return np.transpose(ndc_coords)
 
 # Pre-define the view params (location, view angle... ,etc.)
-width, height = 256, 256
-fov = np.pi / 2.0  # 60 degrees
+width, height = 512, 512
+fov = np.pi / 1.5  # 60 degrees
 near, far = 0.1, 1000
 aspect_ratio = width / height
 
-def do_perspective_projection(points_3d, label, target_type, save_image, save_label):
+def do_perspective_projection(points_3d, label, target_type, save_image, save_label, heights, widths, longitudes):
     # Room Dimension
     X = np.max(points_3d[:,1]) - np.min(points_3d[:,1])
     Y = np.max(points_3d[:,2]) - np.min(points_3d[:,2])
     Z = np.max(points_3d[:,0]) - np.min(points_3d[:,0])
 
-    camera_position = np.array([np.mean(points_3d[:,1]), np.mean(points_3d[:,2]), np.mean(points_3d[:,0])])
+    camera_position = np.array([np.min(points_3d[:, 1]) + X/5 * longitudes, np.min(points_3d[:, 2]) + (Y/4 * heights), np.min(points_3d[:, 0]) + (Z/4 * widths)])
     if (target_type == "left"):
-        target = np.array([np.min(points_3d[:,1]), np.mean(points_3d[:,2]), np.mean(points_3d[:,0])])
+        # target = np.array([np.min(points_3d[:,1]), np.mean(points_3d[:,2]), np.mean(points_3d[:,0])])
+        target = camera_position + (-0.1, 0, 0)
+        up = np.array([0, 1, 0])
     elif (target_type == "right"):
-        target = np.array(
-            [np.max(points_3d[:, 1]), np.mean(points_3d[:, 2]), np.mean(points_3d[:, 0])])
+        # target = np.array(
+        #     [np.max(points_3d[:, 1]), np.mean(points_3d[:, 2]), np.mean(points_3d[:, 0])])
+        target = camera_position + (0.1, 0, 0)
+        up = np.array([0, 1, 0])
     elif (target_type == "forward"):
-        target = np.array(
-            [np.mean(points_3d[:, 1]), np.mean(points_3d[:, 2]), np.min(points_3d[:, 0])])
+        # target = np.array(
+        #     [np.mean(points_3d[:, 1]), np.mean(points_3d[:, 2]), np.min(points_3d[:, 0])])
+        target = camera_position + (0, 0, 0.1)
+        up = np.array([0, 1, 0])
+    elif (target_type == "back"):
+        # target = np.array(
+        #     [np.mean(points_3d[:, 1]), np.mean(points_3d[:, 2]), np.min(points_3d[:, 0])])
+        target = camera_position + (0, 0, -0.1)
+        up = np.array([0, 1, 0])
+    elif (target_type == "up"):
+        # target = np.array(
+        #     [np.mean(points_3d[:, 1]), np.max(points_3d[:, 2]), np.min(points_3d[:, 0])])
+        target = camera_position + (0, 0.1, 0)
+        up = np.array([0, 0, 1])
+    elif (target_type == "down"):
+        # target = np.array(
+        #     [np.mean(points_3d[:, 1]), np.min(points_3d[:, 2]), np.min(points_3d[:, 0])])
+        target = camera_position + (0, -0.1, 0)
+        up = np.array([0, 0, 1])
     else:
-        target = np.array(
-            [np.mean(points_3d[:, 1]), np.mean(points_3d[:, 2]), np.max(points_3d[:, 0])])
-
-    up = np.array([0, 1, 0])
+        return False
 
     # Define model matrix (identity for simplicity)
     model_matrix = np.identity(4)
@@ -132,8 +151,8 @@ def do_perspective_projection(points_3d, label, target_type, save_image, save_la
     img_height = min(np.max(y_coords) + 1, height)
 
     # Create a blank image with specified dimensions
-    image = np.zeros((img_height, img_width, 3), dtype=np.uint8)
-    proj_l = np.zeros((img_height, img_width), dtype=np.uint8)
+    image = np.zeros((height, width, 3), dtype=np.uint8)
+    proj_l = np.zeros((height, width), dtype=np.uint8)
     # Assign colors to corresponding coordinates within the limits
     valid_indices = (x_coords < img_width) & (y_coords < img_height) & (0 <= x_coords) & (0 <= y_coords)
     image[y_coords[valid_indices], x_coords[valid_indices]] = colors[valid_indices]
@@ -143,3 +162,49 @@ def do_perspective_projection(points_3d, label, target_type, save_image, save_la
 
     proj_l[y_coords[valid_indices], x_coords[valid_indices]] = labels[valid_indices].reshape(-1)
     np.savetxt(save_label, proj_l)
+
+def gen_the_pp_image(scan, label, scan_path):
+    for h in np.arange(2):
+        for w in np.arange(2):
+            for l in np.arange(2):
+                save_label_path = "/home/xi/repo/research_2/PP/label/1_" + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                                  scan_path.split(os.sep)[-3] + '.label'
+                save_image_path = "/home/xi/repo/research_2/PP/image/1_" + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                         scan_path.split(os.sep)[-3]
+                do_perspective_projection(points_3d=scan, label=label, target_type="left", save_image=save_image_path,
+                                      save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1)
+
+                save_label_path = "/home/xi/repo/research_2/PP/label/2_" + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                             scan_path.split(os.sep)[-3] + '.label'
+                save_image_path = "/home/xi/repo/research_2/PP/image/2_" + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                             scan_path.split(os.sep)[-3]
+                # do_perspective_projection(points_3d=scan, label=label, target_type="right", save_image=save_image_path,
+                #                           save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1)
+
+                save_label_path = "/home/xi/repo/research_2/PP/label/3_" + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                             scan_path.split(os.sep)[-3] + '.label'
+                save_image_path = "/home/xi/repo/research_2/PP/image/3_" + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                             scan_path.split(os.sep)[-3]
+                do_perspective_projection(points_3d=scan, label=label, target_type="forward", save_image=save_image_path,
+                                          save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1)
+
+                save_label_path = "/home/xi/repo/research_2/PP/label/4_" + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                             scan_path.split(os.sep)[-3] + '.label'
+                save_image_path = "/home/xi/repo/research_2/PP/image/4_" + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                             scan_path.split(os.sep)[-3]
+                # do_perspective_projection(points_3d=scan, label=label, target_type="back", save_image=save_image_path,
+                #                           save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1)
+
+                save_label_path = "/home/xi/repo/research_2/PP/label/5_" + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                                  scan_path.split(os.sep)[-3] + '.label'
+                save_image_path = "/home/xi/repo/research_2/PP/image/5_" + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                                  scan_path.split(os.sep)[-3]
+                # do_perspective_projection(points_3d=scan, label=label, target_type="up", save_image=save_image_path,
+                #                           save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1)
+
+                save_label_path = "/home/xi/repo/research_2/PP/label/6_" + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                                  scan_path.split(os.sep)[-3] + '.label'
+                save_image_path = "/home/xi/repo/research_2/PP/image/6_" + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                                  scan_path.split(os.sep)[-3]
+                # do_perspective_projection(points_3d=scan, label=label, target_type="down", save_image=save_image_path,
+                #                           save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1)

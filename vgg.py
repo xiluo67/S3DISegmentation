@@ -49,11 +49,11 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # device = torch.device('cpu')
 # device = torch.device('cpu')
 def split_dataset(image_folder, mask_folder, train_ratio=0.6, val_ratio=0.2, test_ratio=0.2):
-    image_files = [f for f in os.listdir(image_folder) if f.endswith('.png')]
+    image_files = [f for f in os.listdir(image_folder) if f.endswith('.jpg')]
 
     # Make sure corresponding mask files exist
-    mask_files = [f.replace('.png', '.label') for f in image_files if
-                  os.path.exists(os.path.join(mask_folder, f.replace('.png', '.label')))]
+    mask_files = [f.replace('.jpg', '.label') for f in image_files if
+                  os.path.exists(os.path.join(mask_folder, f.replace('.jpg', '.label')))]
 
     # Split dataset into training+validation and test sets
     train_val_files, test_files = train_test_split(mask_files, test_size=test_ratio, random_state=42)
@@ -62,6 +62,7 @@ def split_dataset(image_folder, mask_folder, train_ratio=0.6, val_ratio=0.2, tes
     train_files, val_files = train_test_split(train_val_files, test_size=val_ratio / (train_ratio + val_ratio),
                                               random_state=42)
 
+    print(len(train_files))
     return train_files, val_files, test_files
 
 class SegmentationDataset(Dataset):
@@ -76,7 +77,7 @@ class SegmentationDataset(Dataset):
 
     def __getitem__(self, idx):
         mask_file = self.file_list[idx]
-        image_file = mask_file.replace('.label', '.png')
+        image_file = mask_file.replace('.label', '.jpg')
 
         image_path = os.path.join(self.image_folder, image_file)
         mask_path = os.path.join(self.mask_folder, mask_file)
@@ -111,10 +112,10 @@ def get_transforms():
             A.RandomBrightnessContrast(),
             A.HueSaturationValue()
         ], p=0.3),
-        A.Resize(height=224, width=224, always_apply=True),
+        A.Resize(height=512, width=512, always_apply=True),
         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         A_pytorch.ToTensorV2()  # Ensure correct import and usage
-    ], p=1.0, is_check_shapes=False)
+    ], p=1.0)
 
 
 class EarlyStopping:
@@ -134,47 +135,6 @@ class EarlyStopping:
             if self.counter >= self.patience:
                 self.early_stop = True
 
-class VGGSegmentation(nn.Module):
-    def __init__(self, num_classes=13):
-        super(VGGSegmentation, self).__init__()
-        # Pre-trained VGG encoder
-        self.encoder = models.vgg16(pretrained=True).features
-
-        # Decoder with upsampling layers
-        self.decoder = nn.Sequential(
-            nn.Conv2d(512, 512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),  # Upsample to 14x14
-
-            nn.Conv2d(512, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),  # Upsample to 28x28
-
-            nn.Conv2d(256, 128, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, 64, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),  # Upsample to 56x56
-
-            nn.Conv2d(64, 32, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),  # Upsample to 112x112
-
-            nn.Conv2d(32, 16, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),  # Upsample to 224x224
-
-            nn.Conv2d(16, num_classes, kernel_size=1)  # Final conv layer to get the desired number of classes
-        )
-
-    def forward(self, x):
-        x = self.encoder(x)
-        x = self.decoder(x)
-        return x
 
 import torch
 import torch.nn as nn
@@ -220,44 +180,45 @@ class UNet(nn.Module):
         return block
 
     def forward(self, x):
-        print(f"Input shape: {x.shape}")
+        # print(f"Input shape: {x.shape}")
 
         # Encoding path
         e1 = self.encoder1(x)  # [B, 64, 1024, 2048]
-        print(f"After encoder1: {e1.shape}")
+        # print(f"After encoder1: {e1.shape}")
         e2 = self.encoder2(F.max_pool2d(e1, 2))  # [B, 128, 512, 1024]
-        print(f"After encoder2: {e2.shape}")
+        # print(f"After encoder2: {e2.shape}")
         e3 = self.encoder3(F.max_pool2d(e2, 2))  # [B, 256, 256, 512]
-        print(f"After encoder3: {e3.shape}")
+        # print(f"After encoder3: {e3.shape}")
         e4 = self.encoder4(F.max_pool2d(e3, 2))  # [B, 512, 128, 256]
-        print(f"After encoder4: {e4.shape}")
+        # print(f"After encoder4: {e4.shape}")
         e5 = self.encoder5(F.max_pool2d(e4, 2))  # [B, 1024, 64, 128]
-        print(f"After encoder5: {e5.shape}")
+        # print(f"After encoder5: {e5.shape}")
 
         # Decoding path
         d5 = self.upconv5(e5)  # [B, 512, 128, 256]
-        print(f"After upconv5: {d5.shape}")
+        # print(f"After upconv5: {d5.shape}")
         d5 = torch.cat((d5, e4), dim=1)  # Concatenate skip connection
-        print(f"After concatenating e4: {d5.shape}")
+        # print(f"After concatenating e4: {d5.shape}")
         d4 = self.upconv4(d5)  # [B, 256, 256, 512]
-        print(f"After upconv4: {d4.shape}")
+        # print(f"After upconv4: {d4.shape}")
         d4 = torch.cat((d4, e3), dim=1)  # Concatenate skip connection
-        print(f"After concatenating e3: {d4.shape}")
+        # print(f"After concatenating e3: {d4.shape}")
         d3 = self.upconv3(d4)  # [B, 128, 512, 1024]
-        print(f"After upconv3: {d3.shape}")
+        # print(f"After upconv3: {d3.shape}")
         d3 = torch.cat((d3, e2), dim=1)  # Concatenate skip connection
-        print(f"After concatenating e2: {d3.shape}")
+        # print(f"After concatenating e2: {d3.shape}")
         d2 = self.upconv2(d3)  # [B, 64, 1024, 2048]
-        print(f"After upconv2: {d2.shape}")
+        # print(f"After upconv2: {d2.shape}")
         d2 = torch.cat((d2, e1), dim=1)  # Concatenate skip connection
-        print(f"After concatenating e1: {d2.shape}")
+        # print(f"After concatenating e1: {d2.shape}")
 
         out = self.final_conv(d2)  # [B, num_classes, 1024, 2048]
-        print(f"Output shape: {out.shape}")
+        # print(f"Output shape: {out.shape}")
 
         return out
 
-
+from testing_group_3 import *
+from testing_group_2 import *
 def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=25, patience=5):
     early_stopping = EarlyStopping(patience=patience)
 
@@ -276,15 +237,22 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
         total_train = 0
 
         for batch in train_dataloader:
-            images = batch['image'].to(device)
-            masks = batch['mask'].to(device)
+            if torch.cuda.device_count() >= 1:
+                images = batch['image'].to(device).cuda()
+                masks = batch['mask'].to(device).cuda()
+            else:
+                images = batch['image'].to(device)
+                masks = batch['mask'].to(device)
 
             optimizer.zero_grad()
-            print("image shape:", {images.shape})
+            # model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
             outputs = model(images)
 
-            print(outputs.shape)
-            print(masks.shape)
+            # print(outputs.shape)
+            # print(masks.shape)
+            if isinstance(outputs, dict):
+                outputs = outputs['out']
+                # outputs = F.interpolate(outputs, size=(512, 512), mode='bilinear', align_corners=False)
             loss = criterion(outputs, masks.long())
             loss.backward()
             optimizer.step()
@@ -310,11 +278,18 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
         total_val = 0
         with torch.no_grad():
             for batch in val_dataloader:
-                images = batch['image'].to(device)
-                masks = batch['mask'].to(device)
+                if torch.cuda.device_count() >= 1:
+                    images = batch['image'].to(device).cuda()
+                    masks = batch['mask'].to(device).cuda()
+                else:
+                    images = batch['image'].to(device)
+                    masks = batch['mask'].to(device)
 
                 outputs = model(images)
 
+                if isinstance(outputs, dict):
+                    outputs = outputs['out']
+                    outputs = F.interpolate(outputs, size=(512, 512), mode='bilinear', align_corners=False)
                 loss = criterion(outputs, masks.long())
                 val_loss += loss.item() * images.size(0)
 
@@ -360,8 +335,8 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
     return model
 
 # Split the dataset
-image_folder = '/media/rosie/KINGSTON/research/PP/image/'
-mask_folder = '/media/rosie/KINGSTON/research/PP/label/'
+image_folder = '/home/xi/repo/research/PP/image/'
+mask_folder = '/home/xi/repo/research/PP/label/'
 # image_folder = '/media/rosie/KINGSTON/Gen_image/PP/image/'
 # mask_folder = '/media/rosie/KINGSTON/Gen_image/PP/label/'
 
@@ -373,21 +348,30 @@ val_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_fo
 test_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=test_files, transform=get_transforms())
 
 # Create DataLoaders
-train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=4, shuffle=True)
-val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=4, shuffle=False)
-test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=4, shuffle=False)
+train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=9, shuffle=True, num_workers=8, drop_last=True)
+val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=9, shuffle=False, num_workers=8, drop_last=True)
+test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=9, shuffle=False, num_workers=8, drop_last=True)
 sample = train_dataset[0]
 # print("Image shape in dataset:", sample['image'].shape)  # Should print: torch.Size([3, 224, 224])
 # print("Mask shape:", sample['mask'].shape)   # Should be consistent with the number of classes
 num_classes = 14  # Example number of classes
-train = 1
+train = 0
 if train:
     # model = VGGSegmentation(num_classes=num_classes).to(device)
-    model = UNet(num_classes=num_classes).to(device)
+    # model = UNet(num_classes=num_classes).to(device)
+    # model = DPT.to(device)
+    model = SegFormerPretrained(num_classes=num_classes)
+    # model = DeepLabV3
+    # model = DeepLabV3_Pretrained(num_classes=num_classes).to(device)
+    if torch.cuda.device_count() >= 1:
+        print(f"Let's use {torch.cuda.device_count()} GPUs!")
+        model = nn.DataParallel(model)
+        model = model.cuda()
+
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1.2e-4)
 
-    model = train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=200, patience=7)
+    model = train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=200, patience=5)
     plt.close()
     # Ensure the log directory exists
     log_dir = "./log"
@@ -407,10 +391,19 @@ if train:
     print(f"Model saved to {model_path}")
 
 else:
-
-    model = VGGSegmentation(num_classes).to(device)
     # model = UNet(num_classes=num_classes).to(device)
-    model.load_state_dict(torch.load('./log/SP.pth'))
+    # model = Segformer.to(device)
+    # model = SegFormerPretrained(num_classes=num_classes)
+    model = DeepLabV3.to(device)
+    # model = SegFormerPretrained(num_classes=num_classes)
+    if torch.cuda.device_count() >= 1:
+        print(f"Let's use {torch.cuda.device_count()} GPUs!")
+        model = nn.DataParallel(model)
+        model = model.to(device)
+        model = model.cuda()
+    # model = VGGSegmentation(num_classes).to(device)
+    # model = UNet(num_classes=num_classes).to(device)
+    model.load_state_dict(torch.load('/home/xi/repo/VGG/log/Dataset2_DeepLabV3.pth'))
     model.eval()
 
     # To store results
@@ -426,6 +419,10 @@ else:
         # Get model predictions
         outputs = model(images)
 
+        if isinstance(outputs, dict):
+            outputs = outputs['out']
+            # outputs = outputs['logits']
+            outputs = F.interpolate(outputs, size=(512, 512), mode='bilinear', align_corners=False)
         # Convert outputs to class predictions
         preds = torch.argmax(outputs, dim=1)  # Shape: [batch_size, height, width]
 
@@ -537,6 +534,10 @@ def get_val_batch(dataloader):
 
         with torch.no_grad():
             preds = model(images)
+
+            if isinstance(preds, dict):
+                preds = preds['out']
+                preds = F.interpolate(preds, size=(512, 512), mode='bilinear', align_corners=False)
         preds = torch.argmax(preds, dim=1)  # Assuming the output is logits
         return images, masks, preds
 
