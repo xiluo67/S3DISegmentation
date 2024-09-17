@@ -48,7 +48,7 @@ def visualize_predictions(images, masks, preds, idx):
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # device = torch.device('cpu')
 # device = torch.device('cpu')
-def split_dataset(image_folder, mask_folder, train_ratio=0.6, val_ratio=0.2, test_ratio=0.2):
+def split_dataset(image_folder, mask_folder, train_ratio=0.79, val_ratio=0.2, test_ratio=0.01):
     image_files = [f for f in os.listdir(image_folder) if f.endswith('.jpg')]
 
     # Make sure corresponding mask files exist
@@ -59,7 +59,7 @@ def split_dataset(image_folder, mask_folder, train_ratio=0.6, val_ratio=0.2, tes
     train_val_files, test_files = train_test_split(mask_files, test_size=test_ratio, random_state=42)
 
     # Split training+validation set into training and validation sets
-    train_files, val_files = train_test_split(train_val_files, test_size=val_ratio / (train_ratio + val_ratio),
+    train_files, val_files = train_test_split(mask_files, test_size=val_ratio / (train_ratio + val_ratio),
                                               random_state=42)
 
     print(len(train_files))
@@ -335,8 +335,8 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
     return model
 
 # Split the dataset
-image_folder = '/home/xi/repo/research/PP/image/'
-mask_folder = '/home/xi/repo/research/PP/label/'
+image_folder = '/home/xi/repo/research_2/PP/image/'
+mask_folder = '/home/xi/repo/research_2/PP/label/'
 # image_folder = '/media/rosie/KINGSTON/Gen_image/PP/image/'
 # mask_folder = '/media/rosie/KINGSTON/Gen_image/PP/label/'
 
@@ -358,9 +358,9 @@ num_classes = 14  # Example number of classes
 train = 0
 if train:
     # model = VGGSegmentation(num_classes=num_classes).to(device)
-    # model = UNet(num_classes=num_classes).to(device)
+    model = UNet(num_classes=num_classes).to(device)
     # model = DPT.to(device)
-    model = SegFormerPretrained(num_classes=num_classes)
+    # model = SegFormerPretrained(num_classes=num_classes)
     # model = DeepLabV3
     # model = DeepLabV3_Pretrained(num_classes=num_classes).to(device)
     if torch.cuda.device_count() >= 1:
@@ -369,7 +369,7 @@ if train:
         model = model.cuda()
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1.2e-4)
+    optimizer = optim.Adam(model.parameters(), lr=1.5e-4)
 
     model = train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=200, patience=5)
     plt.close()
@@ -391,10 +391,10 @@ if train:
     print(f"Model saved to {model_path}")
 
 else:
-    # model = UNet(num_classes=num_classes).to(device)
+    model = UNet(num_classes=num_classes).to(device)
     # model = Segformer.to(device)
     # model = SegFormerPretrained(num_classes=num_classes)
-    model = DeepLabV3.to(device)
+    # model = DeepLabV3.to(device)
     # model = SegFormerPretrained(num_classes=num_classes)
     if torch.cuda.device_count() >= 1:
         print(f"Let's use {torch.cuda.device_count()} GPUs!")
@@ -403,13 +403,15 @@ else:
         model = model.cuda()
     # model = VGGSegmentation(num_classes).to(device)
     # model = UNet(num_classes=num_classes).to(device)
-    model.load_state_dict(torch.load('/home/xi/repo/VGG/log/Dataset2_DeepLabV3.pth'))
+    model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_20240917_160233_.pth'))
     model.eval()
 
     # To store results
     dice_scores = []
     iou_scores = []
     accuracy_scores = []
+    precision_scores = []
+    recall_scores = []
 
     # Iterate through the dataloader
     for batch_index, batch in enumerate(val_dataloader):
@@ -451,23 +453,44 @@ else:
             dice = (2. * intersection) / (torch.sum(pred_cls) + torch.sum(mask_cls) + 1e-8)
             iou = intersection / (torch.sum(pred_cls) + torch.sum(mask_cls) - intersection + 1e-8)
 
+            # Calculate precision
+            true_positives = intersection
+            false_positives = torch.sum(pred_cls) - true_positives
+            if true_positives + false_positives > 0:
+                precision = true_positives / (true_positives + false_positives)
+            else:
+                precision = 0.0
+
+            # Calculate recall
+            false_negatives = torch.sum(mask_cls) - true_positives
+            if true_positives + false_negatives > 0:
+                recall = true_positives / (true_positives + false_negatives)
+            else:
+                recall = 0.0
+
             # Calculate accuracy
             correct_pixels = torch.sum(pred_cls * mask_cls)
             total_pixels = torch.sum(mask_cls)
             accuracy = correct_pixels / (total_pixels + 1e-8)  # Avoid division by zero
 
             # Append scores
-            dice_scores.append(dice.item())
-            iou_scores.append(iou.item())
-            accuracy_scores.append(accuracy.item())
+            dice_scores.append(dice)
+            iou_scores.append(iou)
+            precision_scores.append(precision)
+            recall_scores.append(recall)
+            accuracy_scores.append(accuracy)
 
-    # Average Dice, IoU, and accuracy scores across all classes
+    # Average Dice, IoU, precision, recall, and accuracy scores across all classes
     avg_dice = sum(dice_scores) / (len(dice_scores) if dice_scores else 1)
     avg_iou = sum(iou_scores) / (len(iou_scores) if iou_scores else 1)
+    avg_precision = sum(precision_scores) / (len(precision_scores) if precision_scores else 1)
+    avg_recall = sum(recall_scores) / (len(recall_scores) if recall_scores else 1)
     avg_accuracy = sum(accuracy_scores) / (len(accuracy_scores) if accuracy_scores else 1)
 
     print(f"Average Dice Score: {avg_dice:.4f}")
     print(f"Average IoU Score: {avg_iou:.4f}")
+    print(f"Average Precision: {avg_precision:.4f}")
+    print(f"Average Recall: {avg_recall:.4f}")
     print(f"Average Accuracy: {avg_accuracy:.4f}")
 
 # Function to convert tensor to numpy array for plotting

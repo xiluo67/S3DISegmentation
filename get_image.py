@@ -11,7 +11,7 @@ from numpy.core.memmap import dtypedescr
 def find_txt_files(base_dir):
     # List to store paths to all .txt files
     txt_files = []
-    label_files=[]
+    label_files = []
 
     # Walk through the base directory
     for root, dirs, files in os.walk(base_dir):
@@ -30,8 +30,8 @@ def find_txt_files(base_dir):
 
 
 # Define the base directory
-# base_dir = '/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/'
-base_dir = '/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version_Test/'
+base_dir = '/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/'
+# base_dir = '/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version_Test/'
 
 # Find all .txt files
 scan_files, scan_labels = find_txt_files(base_dir)
@@ -364,63 +364,75 @@ def point_cloud_2_birdseye(save_image, save_label, height_range, points, R,G,B,l
 
 from PP import *
 
-name = "SP"
-# if all goes well, open point cloud
-for i in np.arange(len(scan_files)):
-    scan_path = scan_files[i]
-    label_path = scan_labels[i]
+# name = "PP"
+# # if all goes well, open point cloud
+# for i in np.arange(len(scan_files)):
+#     scan_path = scan_files[i]
+#     label_path = scan_labels[i]
+#
+#     scan = np.loadtxt(scan_path, dtype=np.float32)
+#     scan = scan.reshape((-1, 6))
+#
+#     # put in attribute
+#     points = scan[:, 0:3]  # get xyz
+#     R = scan[:, 3]  # get R
+#     G = scan[:, 4]  # get G
+#     B = scan[:, 5]  # get B
+#     label = np.loadtxt(label_path, dtype=np.float32)
+#     if (name == "SP"):
+#         gen = 1
+#         save_label = "/home/xi/repo/research_Area5/SP/label/1_" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3] + '.label'
+#         save_image= "/home/xi/repo/research_Area5/SP/image/1_" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3]
+#         do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110, proj_fov_down=-110, proj_W=512,
+#                             proj_H=512, R=R, G=G, B=B)
+#         gen = 2
+#         save_label = "/home/xi/repo/research_Area5/SP/label/2_" + scan_path.split(os.sep)[-4] + '_' + \
+#                      scan_path.split(os.sep)[-3] + '.label'
+#         save_image = "/home/xi/repo/research_Area5/SP/image/2_" + scan_path.split(os.sep)[-4] + '_' + \
+#                      scan_path.split(os.sep)[-3]
+#         do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
+#                             proj_fov_down=-110, proj_W=512,
+#                             proj_H=512, R=R, G=G, B=B)
+#         gen = 3
+#         save_label = "/home/xi/repo/research_Area5/SP/label/3_" + scan_path.split(os.sep)[-4] + '_' + \
+#                      scan_path.split(os.sep)[-3] + '.label'
+#         save_image = "/home/xi/repo/research_Area5/SP/image/3_" + scan_path.split(os.sep)[-4] + '_' + \
+#                      scan_path.split(os.sep)[-3]
+#         do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
+#                             proj_fov_down=-110, proj_W=512,
+#                             proj_H=512, R=R, G=G, B=B)
+#         gen = 4
+#         save_label = "/home/xi/repo/research_Area5/SP/label/4_" + scan_path.split(os.sep)[-4] + '_' + \
+#                      scan_path.split(os.sep)[-3] + '.label'
+#         save_image = "/home/xi/repo/research_Area5/SP/image/4_" + scan_path.split(os.sep)[-4] + '_' + \
+#                      scan_path.split(os.sep)[-3]
+#         do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
+#                             proj_fov_down=-110, proj_W=512,
+#                             proj_H=512, R=R, G=G, B=B)
+#
+#     elif (name == "BEV"):
+#         hli = (np.max(points[:, 2]) - np.min(points[:, 2])) / 7
+#         for i in range(6):
+#             start = hli * i
+#             end = hli * (i+1)
+#             height_range = (np.min(points[:, 2]) + start, np.min(points[:, 2]) + end)
+#             save_label = "/home/xi/repo/research_Area5/BEV/label/" + str(i) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+#                         scan_path.split(os.sep)[-3] + '.label'
+#             save_image = "/home/xi/repo/research_Area5/BEV/image/" + str(i) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+#                         scan_path.split(os.sep)[-3]
+#             point_cloud_2_birdseye(save_image=save_image, save_label=save_label, height_range=height_range, points=points, R=R,G=G,B=B,label=label)
+#
+#     elif (name == "PP"):
+#         gen_the_pp_image(scan=scan, label=label, scan_path=scan_path)
+#     else:
+#         pass
 
-    scan = np.loadtxt(scan_path, dtype=np.float32)
-    scan = scan.reshape((-1, 6))
+scp = "/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_1/office_5/room_data/office_5.txt"
+lap = "/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_1/office_5/room_data/office_5.label"
 
-    # put in attribute
-    points = scan[:, 0:3]  # get xyz
-    R = scan[:, 3]  # get R
-    G = scan[:, 4]  # get G
-    B = scan[:, 5]  # get B
-    label = np.loadtxt(label_path, dtype=np.float32)
-    if (name == "SP"):
-        gen = 1
-        save_label = "/home/xi/repo/research_Area5/SP/label/1_" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3] + '.label'
-        save_image= "/home/xi/repo/research_Area5/SP/image/1_" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3]
-        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110, proj_fov_down=-110, proj_W=512,
-                            proj_H=512, R=R, G=G, B=B)
-        gen = 2
-        save_label = "/home/xi/repo/research_Area5/SP/label/2_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/home/xi/repo/research_Area5/SP/image/2_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
-                            proj_fov_down=-110, proj_W=512,
-                            proj_H=512, R=R, G=G, B=B)
-        gen = 3
-        save_label = "/home/xi/repo/research_Area5/SP/label/3_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/home/xi/repo/research_Area5/SP/image/3_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
-                            proj_fov_down=-110, proj_W=512,
-                            proj_H=512, R=R, G=G, B=B)
-        gen = 4
-        save_label = "/home/xi/repo/research_Area5/SP/label/4_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/home/xi/repo/research_Area5/SP/image/4_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
-                            proj_fov_down=-110, proj_W=512,
-                            proj_H=512, R=R, G=G, B=B)
+sc = np.loadtxt(scp, dtype=np.float32)
+sc = sc.reshape((-1, 6))
+# put in attribute
+la = np.loadtxt(lap, dtype=np.float32)
 
-    elif (name == "BEV"):
-        hli = (np.max(points[:, 2]) - np.min(points[:, 2])) / 6
-        for i in range(6):
-            start = hli * i
-            end = hli * (i+1)
-            height_range = (np.min(points[:, 2]) + start, np.min(points[:, 2]) + end)
-            save_label = "/home/xi/repo/research_2/BEV/label/" + str(i) + '_' + scan_path.split(os.sep)[-4] + '_' + \
-                        scan_path.split(os.sep)[-3] + '.label'
-            save_image = "/home/xi/repo/research_2/BEV/image/" + str(i) + '_' + scan_path.split(os.sep)[-4] + '_' + \
-                        scan_path.split(os.sep)[-3]
-            point_cloud_2_birdseye(save_image=save_image, save_label=save_label, height_range=height_range, points=points, R=R,G=G,B=B,label=label)
-
-    elif (name == "PP"):
-        gen_the_pp_image(scan=scan, label=label, scan_path=scan_path)
+gen_the_pp_image(scan=sc, label=la, scan_path=scp)
