@@ -2,86 +2,208 @@
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 import open3d as o3d
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision.transforms as transforms
+import cv2
+from PIL import Image
+class UNet(nn.Module):
+    def __init__(self, num_classes=14):
+        super(UNet, self).__init__()
 
-class points_with_pred_labels(self):
-    def __init__(self, points):
-        # Assuming points is a list of 3D coordinates [(x1, y1, z1), (x2, y2, z2), ...]
-        self.points = points
-        self.labels = [[] for _ in range(len(points))]
+        # Encoder (Downsampling path)
+        self.encoder1 = self.conv_block(3, 64)  # Output: [B, 64, 1024, 2048]
+        self.encoder2 = self.conv_block(64, 128)  # Output: [B, 128, 512, 1024]
+        self.encoder3 = self.conv_block(128, 256)  # Output: [B, 256, 256, 512]
+        self.encoder4 = self.conv_block(256, 512)  # Output: [B, 512, 128, 256]
+        self.encoder5 = self.conv_block(512, 1024)  # Output: [B, 1024, 64, 128]
 
-        def add_label(self, index, label):
-            # Add label to the point at the specified index
-            if 0 <= index < len(self.points):
-                self.labels[index].append(label)
+        # Decoder (Upsampling path)
+        self.upconv5 = self.upconv_block(1024, 512)  # Output: [B, 512, 128, 256]
+        self.upconv4 = self.upconv_block(512 + 512, 256)  # Output: [B, 256, 256, 512]
+        self.upconv3 = self.upconv_block(256 + 256, 128)  # Output: [B, 128, 512, 1024]
+        self.upconv2 = self.upconv_block(128 + 128, 64)   # Output: [B, 64, 1024, 2048]
+
+        # Final conv layer to produce the output segmentation map
+        self.final_conv = nn.Conv2d(128, num_classes, kernel_size=1)  # Output: [B, num_classes, 1024, 2048]
+
+    def conv_block(self, in_channels, out_channels):
+        block = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True)
+        )
+        return block
+
+    def upconv_block(self, in_channels, out_channels):
+        block = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        )
+        return block
+
+    def forward(self, x):
+        # print(f"Input shape: {x.shape}")
+
+        # Encoding path
+        e1 = self.encoder1(x)  # [B, 64, 1024, 2048]
+        # print(f"After encoder1: {e1.shape}")
+        e2 = self.encoder2(F.max_pool2d(e1, 2))  # [B, 128, 512, 1024]
+        # print(f"After encoder2: {e2.shape}")
+        e3 = self.encoder3(F.max_pool2d(e2, 2))  # [B, 256, 256, 512]
+        # print(f"After encoder3: {e3.shape}")
+        e4 = self.encoder4(F.max_pool2d(e3, 2))  # [B, 512, 128, 256]
+        # print(f"After encoder4: {e4.shape}")
+        e5 = self.encoder5(F.max_pool2d(e4, 2))  # [B, 1024, 64, 128]
+        # print(f"After encoder5: {e5.shape}")
+
+        # Decoding path
+        d5 = self.upconv5(e5)  # [B, 512, 128, 256]
+        # print(f"After upconv5: {d5.shape}")
+        d5 = torch.cat((d5, e4), dim=1)  # Concatenate skip connection
+        # print(f"After concatenating e4: {d5.shape}")
+        d4 = self.upconv4(d5)  # [B, 256, 256, 512]
+        # print(f"After upconv4: {d4.shape}")
+        d4 = torch.cat((d4, e3), dim=1)  # Concatenate skip connection
+        # print(f"After concatenating e3: {d4.shape}")
+        d3 = self.upconv3(d4)  # [B, 128, 512, 1024]
+        # print(f"After upconv3: {d3.shape}")
+        d3 = torch.cat((d3, e2), dim=1)  # Concatenate skip connection
+        # print(f"After concatenating e2: {d3.shape}")
+        d2 = self.upconv2(d3)  # [B, 64, 1024, 2048]
+        # print(f"After upconv2: {d2.shape}")
+        d2 = torch.cat((d2, e1), dim=1)  # Concatenate skip connection
+        # print(f"After concatenating e1: {d2.shape}")
+
+        out = self.final_conv(d2)  # [B, num_classes, 1024, 2048]
+        # print(f"Output shape: {out.shape}")
+
+        return out
+class points_with_pred_labels():
+    def __init__(self):
+        # Dictionary to store points and their associated labels
+        self.point_label_dict = {}
+
+    def add_point_with_label(self, point, label):
+        # Convert the point to a tuple to use as a dictionary key
+        point_key = tuple(point)  # Assuming point is (x, y, z)
+        # Initialize the key if it doesn't exist and append the label
+        if point_key not in self.point_label_dict:
+            self.point_label_dict[point_key] = []
+        self.point_label_dict[point_key].append(label)
+
+    def get_labels_by_point(self, point):
+        # Retrieve the labels using the point's (x, y, z) coordinates
+        point_key = tuple(point)
+        # Return the list of labels for the given point or an empty list if not found
+        return self.point_label_dict.get(point_key, [])
+
+    def most_voted_labels(self):
+        # Initialize a list to hold the (x, y, z, most_voted_label) for each point
+        points_with_labels = []
+
+        for point_key, label_list in self.point_label_dict.items():
+            if not label_list:
+                # If there are no labels, append -1 for the label
+                points_with_labels.append((*point_key, -1))
+                continue
+
+            # Count the occurrences of each label
+            label_counts = {}
+            for label in label_list:
+                # Convert the label to an int if it is an ndarray
+                if isinstance(label, np.ndarray):
+                    label = label.flatten()  # Flatten the array
+                    if label.size == 1:  # Ensure it's a single-element array
+                        label = label.item()
+                    else:
+                        label = tuple(label)  # Convert multi-element arrays to tuples
+                label_counts[label] = label_counts.get(label, 0) + 1
+
+            # Find the label(s) with the maximum votes
+            max_count = max(label_counts.values())
+            max_labels = [label for label, count in label_counts.items() if count == max_count]
+
+            # Determine the most voted label or set to -1 if there's a tie
+            if len(max_labels) > 1:
+                points_with_labels.append((*point_key, -1))
             else:
-                print(f"Index {index} out of range.")
+                points_with_labels.append((*point_key, max_labels[0]))
 
-        def get_labels(self, index):
-            # Get all labels for the point at the specified index
-            if 0 <= index < len(self.points):
-                return self.labels[index]
-            else:
-                print(f"Index {index} out of range.")
-                return None
+        return points_with_labels
 
-        def most_voted_labels(self):
-            # Initialize an array to hold the (x, y, z, most_voted_label) for each point
-            points_with_labels = []
-
-            for point, label_list in zip(self.points[:, 0:3], self.labels):
-                if not label_list:
-                    # If there are no labels, append None for the label
-                    points_with_labels.append((*point, -1))
-                    continue
-
-                # Count the occurrences of each label
-                label_counts = {}
-                for label in label_list:
-                    label_counts[label] = label_counts.get(label, 0) + 1
-
-                # Find the label(s) with the maximum votes
-                max_count = max(label_counts.values())
-                max_labels = [label for label, count in label_counts.items() if count == max_count]
-
-                # Determine the most voted label or set to None if there's a tie
-                if len(max_labels) > 1:
-                    points_with_labels.append((*point, -1))
-                else:
-                    points_with_labels.append((*point, max_labels[0]))
-
-            return points_with_labels
-
-def complete_labels_with_knn(k=5):
+def complete_labels_with_knn(k, point_cloud):
     # Project all points
     extended_points = point_cloud_dataset.most_voted_labels()
 
     # Separate projected and unprojected points
-    has_labels = pred_labels != -1  # Change this based on how missing labels are represented
-    projected_points = extended_points[has_labels]
-    unprojected_points = extended_points[~has_labels]
+    # has_labels = extended_points[:, -1] != -1  # Change this based on how missing labels are represented
+    # projected_points = extended_points[has_labels]
+    # unprojected_points = extended_points[~has_labels]
+
+    projected_points = [point for point in extended_points if point[-1] != -1]
+    unprojected_points = [point for point in extended_points if point[-1] == -1]
 
     # Extract features and labels
-    projected_features = projected_points[:, :-3]  # Exclude proj_x, proj_y, pred_label
-    projected_labels = projected_points[:, -1]  # Only pred_label
+    # projected_features = projected_points[:, 0:3]  # Exclude proj_x, proj_y, pred_label
+    # projected_labels = projected_points[:, -1]  # Only pred_label
+
+    projected_features = [point[0:3] for point in projected_points]  # Extract (x, y, z)
+    projected_labels = [point[-1] for point in projected_points]  # Extract label
+
     unique_classes = np.unique(projected_labels)
     print("Unique classes:", unique_classes)
 
-    if len(unprojected_points) > 0:
-        # Apply KNN
+    # Identify points in point_cloud but not in extended_points
+    # projected_points_set = set(map(tuple, projected_points[:, 0:3]))  # Use set for fast lookup
+    # unprojected_points_in_cloud = np.array([point for point in point_cloud if tuple(point) not in projected_points_set])
+    projected_points_set = set(tuple(point[0:3]) for point in projected_points)
+    unprojected_points_in_cloud = [point for point in point_cloud if tuple(point) not in projected_points_set]
+
+    # Apply KNN if there are unprojected points
+    if len(unprojected_points) > 0 or len(unprojected_points_in_cloud) > 0:
+        # Fit KNN on projected data
         knn = KNeighborsClassifier(n_neighbors=k)
-        knn.fit(projected_features[:,:3], projected_labels.astype(int))
+        knn.fit(projected_features, projected_labels.astype(int))
 
-        unprojected_features = unprojected_points[:, :-3]  # Exclude proj_x, proj_y, pred_label
-        predicted_labels_for_unprojected = knn.predict(unprojected_features[:,:3])
+        # Predict labels for original unprojected points
+        if len(unprojected_points) > 0:
+            unprojected_features = unprojected_points[:, 0:3]  # Extract (x, y, z) features
+            predicted_labels_for_unprojected = knn.predict(unprojected_features)
+            unprojected_points_with_labels = np.hstack(
+                (unprojected_points[:, 0:3], predicted_labels_for_unprojected.reshape(-1, 1)))
+        else:
+            unprojected_points_with_labels = np.array([])
 
-        # Update labels for unprojected points
-        unprojected_points[:, -1] = predicted_labels_for_unprojected
+        # Predict labels for unprojected points in the original point cloud
+        if len(unprojected_points_in_cloud) > 0:
+            unprojected_cloud_features = unprojected_points_in_cloud  # Extract (x, y, z) features
+            predicted_labels_for_unprojected_cloud = knn.predict(unprojected_cloud_features)
+            unprojected_points_in_cloud_with_labels = np.hstack(
+                (unprojected_points_in_cloud, predicted_labels_for_unprojected_cloud.reshape(-1, 1)))
+        else:
+            unprojected_points_in_cloud_with_labels = np.array([])
 
         # Combine results
-        all_points = np.vstack((projected_points, unprojected_points))
+        if len(unprojected_points_with_labels) > 0 and len(unprojected_points_in_cloud_with_labels) > 0:
+            all_points = np.vstack(
+                (projected_points, unprojected_points_with_labels, unprojected_points_in_cloud_with_labels))
+        elif len(unprojected_points_with_labels) > 0:
+            all_points = np.vstack((projected_points, unprojected_points_with_labels))
+        elif len(unprojected_points_in_cloud_with_labels) > 0:
+            all_points = np.vstack((projected_points, unprojected_points_in_cloud_with_labels))
+        else:
+            all_points = projected_points
     else:
+        # If no unprojected points, just return the projected points
         all_points = projected_points
 
+    print(type(all_points))
     return all_points
 
 
@@ -168,10 +290,11 @@ def project_to_screen(ndc_coords, width, height):
 
 # *************************************************************************************
 point_cloud = np.loadtxt(
-    "/media/rosie/KINGSTON/Dataset_2/Stanford3dDataset_v1.2_Aligned_Version/Area_4/conferenceRoom_2/room_data/conferenceRoom_2.txt")
+    "/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_2/office_1/room_data/office_1.txt")
 point_label = np.loadtxt(
-    "/media/rosie/KINGSTON/Dataset_2/Stanford3dDataset_v1.2_Aligned_Version/Area_4/conferenceRoom_2/room_data/conferenceRoom_2.label")
-model = UNet(num_classes=num_classes).to(device)
+    "/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_2/office_1/room_data/office_1.label")
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = UNet(num_classes=14).to(device)
 if torch.cuda.device_count() >= 1:
     print(f"Let's use {torch.cuda.device_count()} GPUs!")
     model = nn.DataParallel(model)
@@ -180,7 +303,8 @@ if torch.cuda.device_count() >= 1:
 model.load_state_dict(torch.load('/home/xi/repo/VGG/log/512_SP_UNet.pth'))
 model.eval()
 
-point_cloud_dataset = points_with_pred_labels(point_cloud)
+point_cloud_dataset = points_with_pred_labels()
+gt_dataset = points_with_pred_labels()
 # *************************************************************************************
 def transform_point(point, model_matrix, view_matrix, projection_matrix):
     world_coords = np.dot(model_matrix, point[0:4, :])
@@ -225,7 +349,7 @@ def do_mid_pp_projection(points_3d, label, view, fov_value):
 
     # Compute view and projection matrices
     view_matrix = look_at(camera_position, target, up)
-    projection_matrix = perspective_projection(fov_value, aspect_ratio, near, far)
+    projection_matrix = perspective_projection(fov_value, 1, 0.1, far=1000)
     # Define a 3D point in homogeneous coordinates
     points = np.hstack(
         (points_3d[:, 1].reshape(-1, 1), points_3d[:, 2].reshape(-1, 1), points_3d[:, 0].reshape(-1, 1),
@@ -242,7 +366,7 @@ def do_mid_pp_projection(points_3d, label, view, fov_value):
     new_coords = transform_point(np.transpose(valid_points), model_matrix, view_matrix, projection_matrix)
 
     # Project to screen coordinates
-    screen_coords = project_to_screen(np.array(new_coords), width, height)
+    screen_coords = project_to_screen(np.array(new_coords), width=512, height=512)
 
     x_coords = screen_coords[:, 0].astype(np.int32)
 
@@ -253,6 +377,8 @@ def do_mid_pp_projection(points_3d, label, view, fov_value):
     labels = screen_coords[:, 6:].astype(np.uint8)  # Assuming RGB values in uint8 format
 
     # Calculate the actual dimensions of the image
+    width = 512
+    height = 512
     img_width = width
     img_height = height
 
@@ -265,7 +391,10 @@ def do_mid_pp_projection(points_3d, label, view, fov_value):
     proj_l[y_coords[valid_indices], x_coords[valid_indices]] = labels[valid_indices].reshape(-1)
     # np.savetxt(save_label, proj_l)
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
+    if isinstance(image_rgb, np.ndarray):
+        image_rgb = Image.fromarray(image_rgb)
+    else:
+        image_rgb = image_rgb
     # Define the preprocessing transformations
     transform = transforms.Compose([
         transforms.Resize((512, 512)),  # Adjust to match your model input size
@@ -291,14 +420,17 @@ def do_mid_pp_projection(points_3d, label, view, fov_value):
         label_image = torch.argmax(logits, dim=1)  # Shape: [batch_size, height, width]
         label_pred_2d = postprocess_output(label_image)
 
-    point_cloud_dataset.add_label(valid_indices, label_pred_2d[y_coords[valid_indices], x_coords[valid_indices]])
+    for indice in range(len(valid_indices)):
+        if (valid_indices[indice]):
+            key = (valid_points[indice, 2], valid_points[indice, 0], valid_points[indice, 1])
+            point_cloud_dataset.add_point_with_label(key, label_pred_2d[y_coords[indice], x_coords[indice]])
 
 
 def get_3d_eval_res(predicted_labels, ground_truth_labels):
     # Determine the unique classes from the ground truth labels
     classes = np.unique(ground_truth_labels)
     num_classes = len(classes)
-
+    print("Unique classes in gt:", classes)
     # Initialize variables to store the metrics
     accuracy = np.mean(predicted_labels == ground_truth_labels)
     class_accuracy = np.zeros(num_classes)
@@ -383,6 +515,10 @@ def get_3d_eval_res(predicted_labels, ground_truth_labels):
     else:
         overall_iou = 0.0
 
+    print(f"  Accuracy: {overall_accuracy:.4f}")
+    print(f"  Precision: {overall_precision:.4f}")
+    print(f"  Recall: {overall_recall:.4f}")
+    print(f"  IoU: {overall_iou:.4f}")
     return overall_accuracy, overall_precision, overall_recall, overall_iou
 
 def visualize_points_with_colored_labels_open3d(points):
@@ -419,8 +555,14 @@ def visualize_points_with_colored_labels_open3d(points):
 for test in range(6):
     do_mid_pp_projection(point_cloud, point_label, test, fov_value=1.6)
 
-points_with_prediction = complete_labels_with_knn(k=5)
+points_with_prediction = complete_labels_with_knn(k=5, point_cloud= point_cloud[:, 0:3])
 
-get_3d_eval_res(points_with_prediction[:, -1], point_label)
+for i in range(point_cloud.shape[0]):
+    put = point_cloud[i, 0:3]
+    gt_dataset.add_point_with_label(tuple(put), point_label[i])
+
+bench_points = gt_dataset.most_voted_labels()
+
+get_3d_eval_res(np.array(points_with_prediction)[:, -1], np.array(bench_points)[:, -1])
 
 visualize_points_with_colored_labels_open3d(points_with_prediction)
