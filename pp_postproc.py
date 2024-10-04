@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 import cv2
 from PIL import Image
+import matplotlib.pyplot as plt
 class UNet(nn.Module):
     def __init__(self, num_classes=14):
         super(UNet, self).__init__()
@@ -91,7 +92,7 @@ class points_with_pred_labels():
 
     def add_point_with_label(self, point, label):
         # Convert the point to a tuple to use as a dictionary key
-        point_key = tuple(point)  # Assuming point is (x, y, z)
+        point_key = point  # Assuming point is (x, y, z)
         # Initialize the key if it doesn't exist and append the label
         if point_key not in self.point_label_dict:
             self.point_label_dict[point_key] = []
@@ -99,7 +100,7 @@ class points_with_pred_labels():
 
     def get_labels_by_point(self, point):
         # Retrieve the labels using the point's (x, y, z) coordinates
-        point_key = tuple(point)
+        point_key = point
         # Return the list of labels for the given point or an empty list if not found
         return self.point_label_dict.get(point_key, [])
 
@@ -110,7 +111,7 @@ class points_with_pred_labels():
         for point_key, label_list in self.point_label_dict.items():
             if not label_list:
                 # If there are no labels, append -1 for the label
-                points_with_labels.append((*point_key, -1))
+                points_with_labels.append((point_key, -1))
                 continue
 
             # Count the occurrences of each label
@@ -131,49 +132,51 @@ class points_with_pred_labels():
 
             # Determine the most voted label or set to -1 if there's a tie
             if len(max_labels) > 1:
-                points_with_labels.append((*point_key, -1))
+                points_with_labels.append((point_key, -1))
             else:
-                points_with_labels.append((*point_key, max_labels[0]))
+                points_with_labels.append((point_key, max_labels[0]))
 
         return points_with_labels
+
+
+def string_key_to_xyz(string_key, precision=20):
+    # Split the string key by underscores
+    x_str, y_str, z_str = string_key.split('_')
+    scale_factor = 10 ** precision
+    # Convert the strings back to floats and divide by the scale factor
+    x = float(x_str) / scale_factor
+    y = float(y_str) / scale_factor
+    z = float(z_str) / scale_factor
+
+    return (x, y, z)
 
 def complete_labels_with_knn(k, point_cloud):
     # Project all points
     extended_points = point_cloud_dataset.most_voted_labels()
-
-    # Separate projected and unprojected points
-    # has_labels = extended_points[:, -1] != -1  # Change this based on how missing labels are represented
-    # projected_points = extended_points[has_labels]
-    # unprojected_points = extended_points[~has_labels]
+    extended_points[0] = [string_key_to_xyz(point[0]) for point in extended_points]
 
     projected_points = [point for point in extended_points if point[-1] != -1]
     unprojected_points = [point for point in extended_points if point[-1] == -1]
 
-    # Extract features and labels
-    # projected_features = projected_points[:, 0:3]  # Exclude proj_x, proj_y, pred_label
-    # projected_labels = projected_points[:, -1]  # Only pred_label
-
-    projected_features = [point[0:3] for point in projected_points]  # Extract (x, y, z)
+    projected_features = [string_key_to_xyz(point[0]) for point in projected_points]  # Extract (x, y, z)
     projected_labels = [point[-1] for point in projected_points]  # Extract label
 
     unique_classes = np.unique(projected_labels)
     print("Unique classes:", unique_classes)
 
-    # Identify points in point_cloud but not in extended_points
-    # projected_points_set = set(map(tuple, projected_points[:, 0:3]))  # Use set for fast lookup
-    # unprojected_points_in_cloud = np.array([point for point in point_cloud if tuple(point) not in projected_points_set])
-    projected_points_set = set(tuple(point[0:3]) for point in projected_points)
-    unprojected_points_in_cloud = [point for point in point_cloud if tuple(point) not in projected_points_set]
+    unprojected_points_in_cloud = []
 
     # Apply KNN if there are unprojected points
     if len(unprojected_points) > 0 or len(unprojected_points_in_cloud) > 0:
         # Fit KNN on projected data
         knn = KNeighborsClassifier(n_neighbors=k)
-        knn.fit(projected_features, projected_labels.astype(int))
+        knn.fit(projected_features, np.array(projected_labels).astype(int))
 
         # Predict labels for original unprojected points
+        unprojected_points = np.array(unprojected_points)
+
         if len(unprojected_points) > 0:
-            unprojected_features = unprojected_points[:, 0:3]  # Extract (x, y, z) features
+            unprojected_features = [string_key_to_xyz(p[0]) for p in unprojected_points]
             predicted_labels_for_unprojected = knn.predict(unprojected_features)
             unprojected_points_with_labels = np.hstack(
                 (unprojected_points[:, 0:3], predicted_labels_for_unprojected.reshape(-1, 1)))
@@ -290,21 +293,36 @@ def project_to_screen(ndc_coords, width, height):
 
 # *************************************************************************************
 point_cloud = np.loadtxt(
-    "/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_2/office_1/room_data/office_1.txt")
+    "/home/xi/repo/3sdis/Stanford3dDataset_v1.2_Aligned_Version/Area_1/hallway_2/room_data/hallway_2.txt")
 point_label = np.loadtxt(
-    "/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_2/office_1/room_data/office_1.label")
+    "/home/xi/repo/3sdis/Stanford3dDataset_v1.2_Aligned_Version/Area_1/hallway_2/room_data/hallway_2.label")
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = UNet(num_classes=14).to(device)
+model = UNet(num_classes=5).to(device)
 if torch.cuda.device_count() >= 1:
     print(f"Let's use {torch.cuda.device_count()} GPUs!")
     model = nn.DataParallel(model)
     model = model.to(device)
     model = model.cuda()
-model.load_state_dict(torch.load('/home/xi/repo/VGG/log/512_SP_UNet.pth'))
+model.load_state_dict(torch.load('/home/xi/repo/VGG/log/UNet-Hallway-Singleroom.pth'))
 model.eval()
 
 point_cloud_dataset = points_with_pred_labels()
 gt_dataset = points_with_pred_labels()
+
+def pack_coordinates(x, y, z, precision=20):
+
+    scale_factor = 10 ** precision
+
+    # Scale x, y, z to integers
+    xi = int(-x * scale_factor)
+    yi = int(y * scale_factor)
+    zi = int(z * scale_factor)
+
+    # Create a unique key by concatenating the scaled integers
+    string_key = f"{xi}_{yi}_{zi}"
+
+    return string_key
+
 # *************************************************************************************
 def transform_point(point, model_matrix, view_matrix, projection_matrix):
     world_coords = np.dot(model_matrix, point[0:4, :])
@@ -416,14 +434,86 @@ def do_mid_pp_projection(points_3d, label, view, fov_value):
         else:
             logits = output
 
-        # Convert logits to class predictions
-        label_image = torch.argmax(logits, dim=1)  # Shape: [batch_size, height, width]
-        label_pred_2d = postprocess_output(label_image)
+    # Convert logits to class predictions
+    label_image = torch.argmax(logits, dim=1)  # Shape: [batch_size, height, width]
+    label_image = postprocess_output(label_image)
+    # To store results
+    dice_scores = []
+    iou_scores = []
+    accuracy_scores = []
+    precision_scores = []
+    recall_scores = []
+
+    for cls in range(5):
+        pred_cls = (label_image == cls).astype(np.float32).reshape((1, 512, 512))  # Binary mask for predictions
+        mask_cls = (proj_l == cls).astype(np.float32).reshape(pred_cls.shape)  # Binary mask for ground truth
+        mask_cls = torch.from_numpy(mask_cls).to(device)
+        pred_cls = torch.from_numpy(pred_cls).to(device)
+        # Ensure shapes match before calculation
+        if pred_cls.shape != mask_cls.shape:
+            print(f"Pred_cls Shape: {pred_cls.shape}")
+            print(f"Mask_cls Shape: {mask_cls.shape}")
+
+            # Resize pred_cls and mask_cls to match shapes if necessary
+            pred_cls = F.interpolate(pred_cls.unsqueeze(1), size=mask_cls.shape[1:], mode='bilinear',
+                                     align_corners=False).squeeze(1)
+            mask_cls = F.interpolate(mask_cls.unsqueeze(1), size=pred_cls.shape[1:], mode='bilinear',
+                                     align_corners=False).squeeze(1)
+
+            print(f"Batch {batch_index} - Resized Pred_cls Shape: {pred_cls.shape}")
+            print(f"Batch {batch_index} - Resized Mask_cls Shape: {mask_cls.shape}")
+
+        # Calculate Dice score
+        intersection = torch.sum(pred_cls * mask_cls)
+        dice = (2. * intersection) / (torch.sum(pred_cls) + torch.sum(mask_cls) + 1e-8)
+        iou = intersection / (torch.sum(pred_cls) + torch.sum(mask_cls) - intersection + 1e-8)
+
+        # Calculate precision
+        true_positives = intersection
+        false_positives = torch.sum(pred_cls) - true_positives
+        if true_positives + false_positives > 0:
+            precision = true_positives / (true_positives + false_positives)
+        else:
+            precision = 0.0
+
+        # Calculate recall
+        false_negatives = torch.sum(mask_cls) - true_positives
+        if true_positives + false_negatives > 0:
+            recall = true_positives / (true_positives + false_negatives)
+        else:
+            recall = 0.0
+
+        # Calculate accuracy
+        correct_pixels = torch.sum(pred_cls * mask_cls)
+        total_pixels = torch.sum(mask_cls)
+        accuracy = correct_pixels / (total_pixels + 1e-8)  # Avoid division by zero
+
+        # Append scores
+        dice_scores.append(dice)
+        iou_scores.append(iou)
+        precision_scores.append(precision)
+        recall_scores.append(recall)
+        accuracy_scores.append(accuracy)
+
+    # Average Dice, IoU, precision, recall, and accuracy scores across all classes
+    avg_dice = sum(dice_scores) / (len(dice_scores) if dice_scores else 1)
+    avg_iou = sum(iou_scores) / (len(iou_scores) if iou_scores else 1)
+    avg_precision = sum(precision_scores) / (len(precision_scores) if precision_scores else 1)
+    avg_recall = sum(recall_scores) / (len(recall_scores) if recall_scores else 1)
+    avg_accuracy = sum(accuracy_scores) / (len(accuracy_scores) if accuracy_scores else 1)
+
+    print(f"Average Dice Score: {avg_dice:.4f}")
+    print(f"Average IoU Score: {avg_iou:.4f}")
+    print(f"Average Precision: {avg_precision:.4f}")
+    print(f"Average Recall: {avg_recall:.4f}")
+    print(f"Average Accuracy: {avg_accuracy:.4f}")
 
     for indice in range(len(valid_indices)):
         if (valid_indices[indice]):
-            key = (valid_points[indice, 2], valid_points[indice, 0], valid_points[indice, 1])
-            point_cloud_dataset.add_point_with_label(key, label_pred_2d[y_coords[indice], x_coords[indice]])
+            key = pack_coordinates(valid_points[indice, 2], valid_points[indice, 0], valid_points[indice, 1])
+            # key = (valid_points[indice, 2], valid_points[indice, 0], valid_points[indice, 1])
+            point_cloud_dataset.add_point_with_label(key, label_image[y_coords[indice], x_coords[indice]])
+
 
 
 def get_3d_eval_res(predicted_labels, ground_truth_labels):
@@ -515,10 +605,10 @@ def get_3d_eval_res(predicted_labels, ground_truth_labels):
     else:
         overall_iou = 0.0
 
-    print(f"  Accuracy: {overall_accuracy:.4f}")
-    print(f"  Precision: {overall_precision:.4f}")
-    print(f"  Recall: {overall_recall:.4f}")
-    print(f"  IoU: {overall_iou:.4f}")
+    print(f"Overall Accuracy: {overall_accuracy:.4f}")
+    print(f"Overall Precision: {overall_precision:.4f}")
+    print(f"Overall Recall: {overall_recall:.4f}")
+    print(f"Overall IoU: {overall_iou:.4f}")
     return overall_accuracy, overall_precision, overall_recall, overall_iou
 
 def visualize_points_with_colored_labels_open3d(points):
@@ -558,11 +648,12 @@ for test in range(6):
 points_with_prediction = complete_labels_with_knn(k=5, point_cloud= point_cloud[:, 0:3])
 
 for i in range(point_cloud.shape[0]):
-    put = point_cloud[i, 0:3]
-    gt_dataset.add_point_with_label(tuple(put), point_label[i])
+    put = pack_coordinates(point_cloud[i, 0], point_cloud[i, 1], point_cloud[i, 2])
+    gt_dataset.add_point_with_label(put, point_label[i])
 
 bench_points = gt_dataset.most_voted_labels()
 
-get_3d_eval_res(np.array(points_with_prediction)[:, -1], np.array(bench_points)[:, -1])
-
-visualize_points_with_colored_labels_open3d(points_with_prediction)
+# get_3d_eval_res(np.array(points_with_prediction)[:, -1], np.array(bench_points)[:, -1])
+#
+# visualize_points_with_colored_labels_open3d(points_with_prediction)
+# visualize_points_with_colored_labels_open3d(bench_points)

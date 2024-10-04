@@ -48,7 +48,7 @@ def visualize_predictions(images, masks, preds, idx):
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # device = torch.device('cpu')
 # device = torch.device('cpu')
-def split_dataset(image_folder, mask_folder, train_ratio=0.79, val_ratio=0.2, test_ratio=0.01):
+def split_dataset(image_folder, mask_folder, train_ratio=0.8, val_ratio=0.2, test_ratio=0.01):
     image_files = [f for f in os.listdir(image_folder) if f.endswith('.jpg')]
 
     # Make sure corresponding mask files exist
@@ -56,14 +56,14 @@ def split_dataset(image_folder, mask_folder, train_ratio=0.79, val_ratio=0.2, te
                   os.path.exists(os.path.join(mask_folder, f.replace('.jpg', '.label')))]
 
     # Split dataset into training+validation and test sets
-    train_val_files, test_files = train_test_split(mask_files, test_size=test_ratio, random_state=42)
+    # train_val_files, test_files = train_test_split(mask_files, test_size=test_ratio, random_state=42)
 
     # Split training+validation set into training and validation sets
     train_files, val_files = train_test_split(mask_files, test_size=val_ratio / (train_ratio + val_ratio),
                                               random_state=42)
 
     print(len(train_files))
-    return train_files, val_files, test_files
+    return train_files, val_files
 
 class SegmentationDataset(Dataset):
     def __init__(self, image_folder, mask_folder, file_list, transform=None):
@@ -106,12 +106,12 @@ class SegmentationDataset(Dataset):
 import albumentations as A
 def get_transforms():
     return A.Compose([
-        A.HorizontalFlip(),
-        A.RandomRotate90(),
-        A.OneOf([
-            A.RandomBrightnessContrast(),
-            A.HueSaturationValue()
-        ], p=0.3),
+        # A.HorizontalFlip(),
+        # A.RandomRotate90(),
+        # A.OneOf([
+        #     A.RandomBrightnessContrast(),
+        #     A.HueSaturationValue()
+        # ], p=0.3),
         A.Resize(height=512, width=512, always_apply=True),
         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         A_pytorch.ToTensorV2()  # Ensure correct import and usage
@@ -340,28 +340,30 @@ mask_folder = '/home/xi/repo/research_2/PP/label/'
 # image_folder = '/media/rosie/KINGSTON/Gen_image/PP/image/'
 # mask_folder = '/media/rosie/KINGSTON/Gen_image/PP/label/'
 
-train_files, val_files, test_files = split_dataset(image_folder, mask_folder)
+train_files, val_files = split_dataset(image_folder, mask_folder)
+test_files = [f for f in os.listdir('/home/xi/repo/research_2/PP/label_test/') if f.endswith('.label')]
+print(len(test_files))
 
 # Create datasets
 train_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=train_files, transform=get_transforms())
 val_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=val_files, transform=get_transforms())
-test_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=test_files, transform=get_transforms())
+test_dataset = SegmentationDataset(image_folder='/home/xi/repo/research_2/PP/image_test/', mask_folder='/home/xi/repo/research_2/PP/label_test/',
+                                        file_list=test_files, transform=get_transforms())
 
 # Create DataLoaders
-train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=9, shuffle=True, num_workers=8, drop_last=True)
-val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=9, shuffle=False, num_workers=8, drop_last=True)
-test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=9, shuffle=False, num_workers=8, drop_last=True)
+train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=20, shuffle=True, num_workers=10, drop_last=True)
+val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=20, shuffle=False, num_workers=10, drop_last=True)
+test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=20, shuffle=False, num_workers=10, drop_last=True)
 sample = train_dataset[0]
-# print("Image shape in dataset:", sample['image'].shape)  # Should print: torch.Size([3, 224, 224])
-# print("Mask shape:", sample['mask'].shape)   # Should be consistent with the number of classes
+
 num_classes = 14  # Example number of classes
-train = 0
+train = 1
 if train:
     # model = VGGSegmentation(num_classes=num_classes).to(device)
-    model = UNet(num_classes=num_classes).to(device)
+    # model = UNet(num_classes=num_classes).to(device)
     # model = DPT.to(device)
     # model = SegFormerPretrained(num_classes=num_classes)
-    # model = DeepLabV3
+    model = DeepLabV3
     # model = DeepLabV3_Pretrained(num_classes=num_classes).to(device)
     if torch.cuda.device_count() >= 1:
         print(f"Let's use {torch.cuda.device_count()} GPUs!")
@@ -369,7 +371,7 @@ if train:
         model = model.cuda()
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1.5e-4)
+    optimizer = optim.Adam(model.parameters(), lr=1.2e-4)
 
     model = train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=200, patience=5)
     plt.close()
@@ -403,7 +405,7 @@ else:
         model = model.cuda()
     # model = VGGSegmentation(num_classes).to(device)
     # model = UNet(num_classes=num_classes).to(device)
-    model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_20240917_160233_.pth'))
+    model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_20241001_160048_.pth'))
     model.eval()
 
     # To store results
@@ -414,7 +416,7 @@ else:
     recall_scores = []
 
     # Iterate through the dataloader
-    for batch_index, batch in enumerate(val_dataloader):
+    for batch_index, batch in enumerate(test_dataloader):
         images = batch['image'].to(device)
         masks = batch['mask'].to(device)  # Shape: [batch_size, height, width]
 
