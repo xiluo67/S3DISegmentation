@@ -4,16 +4,19 @@ from PIL import Image
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 import torchvision.transforms as transforms
-import albumentations as A
 import albumentations.pytorch as A_pytorch
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
 import torchvision.models as models
+# Transform
+import albumentations as A
 # Visualize the testing results
 import matplotlib.pyplot as plt
 import cv2
-import torch.nn.functional as F
+
+
 torch.cuda.empty_cache()
 
 
@@ -100,9 +103,6 @@ class SegmentationDataset(Dataset):
         # print(" mask tensor after:", mask_tensor.shape)
         return {'image': image_tensor, 'mask': mask_tensor}
 
-
-# Transform
-import albumentations as A
 def get_transforms():
     return A.Compose([
         A.HorizontalFlip(),
@@ -111,7 +111,7 @@ def get_transforms():
             A.RandomBrightnessContrast(),
             A.HueSaturationValue()
         ], p=0.3),
-        A.Resize(height=224, width=224, always_apply=True),
+        A.Resize(height=512, width=512, always_apply=True),
         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         A_pytorch.ToTensorV2()  # Ensure correct import and usage
     ], p=1.0, is_check_shapes=False)
@@ -133,130 +133,6 @@ class EarlyStopping:
             self.counter += 1
             if self.counter >= self.patience:
                 self.early_stop = True
-
-class VGGSegmentation(nn.Module):
-    def __init__(self, num_classes=13):
-        super(VGGSegmentation, self).__init__()
-        # Pre-trained VGG encoder
-        self.encoder = models.vgg16(pretrained=True).features
-
-        # Decoder with upsampling layers
-        self.decoder = nn.Sequential(
-            nn.Conv2d(512, 512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),  # Upsample to 14x14
-
-            nn.Conv2d(512, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),  # Upsample to 28x28
-
-            nn.Conv2d(256, 128, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, 64, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),  # Upsample to 56x56
-
-            nn.Conv2d(64, 32, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),  # Upsample to 112x112
-
-            nn.Conv2d(32, 16, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),  # Upsample to 224x224
-
-            nn.Conv2d(16, num_classes, kernel_size=1)  # Final conv layer to get the desired number of classes
-        )
-
-    def forward(self, x):
-        x = self.encoder(x)
-        x = self.decoder(x)
-        return x
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-class UNet(nn.Module):
-    def __init__(self, num_classes=14):
-        super(UNet, self).__init__()
-
-        # Encoder (Downsampling path)
-        self.encoder1 = self.conv_block(3, 64)  # Output: [B, 64, 1024, 2048]
-        self.encoder2 = self.conv_block(64, 128)  # Output: [B, 128, 512, 1024]
-        self.encoder3 = self.conv_block(128, 256)  # Output: [B, 256, 256, 512]
-        self.encoder4 = self.conv_block(256, 512)  # Output: [B, 512, 128, 256]
-        self.encoder5 = self.conv_block(512, 1024)  # Output: [B, 1024, 64, 128]
-
-        # Decoder (Upsampling path)
-        self.upconv5 = self.upconv_block(1024, 512)  # Output: [B, 512, 128, 256]
-        self.upconv4 = self.upconv_block(512 + 512, 256)  # Output: [B, 256, 256, 512]
-        self.upconv3 = self.upconv_block(256 + 256, 128)  # Output: [B, 128, 512, 1024]
-        self.upconv2 = self.upconv_block(128 + 128, 64)   # Output: [B, 64, 1024, 2048]
-
-        # Final conv layer to produce the output segmentation map
-        self.final_conv = nn.Conv2d(128, num_classes, kernel_size=1)  # Output: [B, num_classes, 1024, 2048]
-
-    def conv_block(self, in_channels, out_channels):
-        block = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True)
-        )
-        return block
-
-    def upconv_block(self, in_channels, out_channels):
-        block = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        )
-        return block
-
-    def forward(self, x):
-        print(f"Input shape: {x.shape}")
-
-        # Encoding path
-        e1 = self.encoder1(x)  # [B, 64, 1024, 2048]
-        print(f"After encoder1: {e1.shape}")
-        e2 = self.encoder2(F.max_pool2d(e1, 2))  # [B, 128, 512, 1024]
-        print(f"After encoder2: {e2.shape}")
-        e3 = self.encoder3(F.max_pool2d(e2, 2))  # [B, 256, 256, 512]
-        print(f"After encoder3: {e3.shape}")
-        e4 = self.encoder4(F.max_pool2d(e3, 2))  # [B, 512, 128, 256]
-        print(f"After encoder4: {e4.shape}")
-        e5 = self.encoder5(F.max_pool2d(e4, 2))  # [B, 1024, 64, 128]
-        print(f"After encoder5: {e5.shape}")
-
-        # Decoding path
-        d5 = self.upconv5(e5)  # [B, 512, 128, 256]
-        print(f"After upconv5: {d5.shape}")
-        d5 = torch.cat((d5, e4), dim=1)  # Concatenate skip connection
-        print(f"After concatenating e4: {d5.shape}")
-        d4 = self.upconv4(d5)  # [B, 256, 256, 512]
-        print(f"After upconv4: {d4.shape}")
-        d4 = torch.cat((d4, e3), dim=1)  # Concatenate skip connection
-        print(f"After concatenating e3: {d4.shape}")
-        d3 = self.upconv3(d4)  # [B, 128, 512, 1024]
-        print(f"After upconv3: {d3.shape}")
-        d3 = torch.cat((d3, e2), dim=1)  # Concatenate skip connection
-        print(f"After concatenating e2: {d3.shape}")
-        d2 = self.upconv2(d3)  # [B, 64, 1024, 2048]
-        print(f"After upconv2: {d2.shape}")
-        d2 = torch.cat((d2, e1), dim=1)  # Concatenate skip connection
-        print(f"After concatenating e1: {d2.shape}")
-
-        out = self.final_conv(d2)  # [B, num_classes, 1024, 2048]
-        print(f"Output shape: {out.shape}")
-
-        return out
-
 
 def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=25, patience=5):
     early_stopping = EarlyStopping(patience=patience)
@@ -280,19 +156,24 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
             masks = batch['mask'].to(device)
 
             optimizer.zero_grad()
-            print("image shape:", {images.shape})
+            # print("image shape:", {images.shape})
             outputs = model(images)
+            # Check if outputs is an OrderedDict and extract logits
+            if isinstance(outputs, dict):
+                logits = outputs['out']
+            else:
+                logits = outputs
 
-            print(outputs.shape)
-            print(masks.shape)
-            loss = criterion(outputs, masks.long())
+            # print(outputs.shape)
+            # print(masks.shape)
+            loss = criterion(logits, masks.long())
             loss.backward()
             optimizer.step()
 
             running_loss += loss.item() * images.size(0)
 
             # Calculate training accuracy
-            _, predicted = torch.max(outputs, 1)
+            _, predicted = torch.max(logits, 1)
             correct_train += (predicted == masks).sum().item()
             total_train += masks.numel()
 
@@ -315,11 +196,16 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
 
                 outputs = model(images)
 
-                loss = criterion(outputs, masks.long())
+                if isinstance(outputs, dict):
+                    logits = outputs['out']
+                else:
+                    logits = outputs
+
+                loss = criterion(logits, masks.long())
                 val_loss += loss.item() * images.size(0)
 
                 # Calculate validation accuracy
-                _, predicted = torch.max(outputs, 1)
+                _, predicted = torch.max(logits, 1)
                 correct_val += (predicted == masks).sum().item()
                 total_val += masks.numel()
 
@@ -360,8 +246,8 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
     return model
 
 # Split the dataset
-image_folder = '/media/rosie/KINGSTON/research/PP/image/'
-mask_folder = '/media/rosie/KINGSTON/research/PP/label/'
+image_folder = '/home/xi/repo/research_2/SP/image/'
+mask_folder = '/home/xi/repo/research_2/SP/label/'
 # image_folder = '/media/rosie/KINGSTON/Gen_image/PP/image/'
 # mask_folder = '/media/rosie/KINGSTON/Gen_image/PP/label/'
 
@@ -373,21 +259,41 @@ val_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_fo
 test_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=test_files, transform=get_transforms())
 
 # Create DataLoaders
-train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=4, shuffle=True)
-val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=4, shuffle=False)
-test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=4, shuffle=False)
+train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=10, shuffle=True, num_workers=8)
+val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=10, shuffle=False, num_workers=8)
+test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=10, shuffle=False, num_workers=8)
 sample = train_dataset[0]
 # print("Image shape in dataset:", sample['image'].shape)  # Should print: torch.Size([3, 224, 224])
 # print("Mask shape:", sample['mask'].shape)   # Should be consistent with the number of classes
 num_classes = 14  # Example number of classes
-train = 1
-if train:
-    # model = VGGSegmentation(num_classes=num_classes).to(device)
-    model = UNet(num_classes=num_classes).to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1.2e-4)
 
-    model = train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=200, patience=7)
+# get model
+from testing_group_1 import *
+from testing_group_2 import *
+from testing_group_3 import *
+
+
+
+train = 0
+if train:
+    # model = UNet(num_classes=num_classes).to(device)
+    # model = DeepLabV3_Pretrained(num_classes=14)
+    model = SegFormerPretrained(num_classes=14).to(device)
+    model = nn.DataParallel(model)  # Wrap the model with DataParallel
+    model.to(device)  # Move the model to GPU
+    # model = CustomDPTModel(num_classes=14).to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=1.0e-4)
+#     from ranger21 import Ranger21
+#
+#     optimizer = optimizer = Ranger21(
+#     model.parameters(),
+#     lr=1e-4,
+#     num_epochs=200,
+#     num_batches_per_epoch=len(train_dataloader)
+# )
+
+    model = train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=200, patience=5)
     plt.close()
     # Ensure the log directory exists
     log_dir = "./log"
@@ -407,10 +313,13 @@ if train:
     print(f"Model saved to {model_path}")
 
 else:
-
-    model = VGGSegmentation(num_classes).to(device)
+    # model = SegFormerPretrained(num_classes=14).to(device)
     # model = UNet(num_classes=num_classes).to(device)
-    model.load_state_dict(torch.load('./log/SP.pth'))
+    model = SegFormerPretrained(num_classes=14).to(device)
+    # model = DeepLabV3_Pretrained(num_classes=14)
+    model = nn.DataParallel(model)  # Wrap the model with DataParallel
+    model.to(device)  # Move the model to GPU
+    model.load_state_dict(torch.load('./log/Dataset1_SegF_SP.pth'))
     model.eval()
 
     # To store results
@@ -419,15 +328,18 @@ else:
     accuracy_scores = []
 
     # Iterate through the dataloader
-    for batch_index, batch in enumerate(val_dataloader):
+    for batch_index, batch in enumerate(test_dataloader):
         images = batch['image'].to(device)
         masks = batch['mask'].to(device)  # Shape: [batch_size, height, width]
 
         # Get model predictions
         outputs = model(images)
-
+        if isinstance(outputs, dict):
+            logits = outputs['out']
+        else:
+            logits = outputs
         # Convert outputs to class predictions
-        preds = torch.argmax(outputs, dim=1)  # Shape: [batch_size, height, width]
+        preds = torch.argmax(logits, dim=1)  # Shape: [batch_size, height, width]
 
         # Calculate Dice score, IoU, and accuracy for each class
         for cls in range(num_classes):
@@ -491,7 +403,7 @@ def tensor_to_numpy(tensor):
 
 
 # Plot images, masks, and predictions
-def plot_results(images, masks, preds, num_samples=4):
+def plot_results(images, masks, preds, num_samples=2):
     fig, axes = plt.subplots(num_samples, 3, figsize=(15, num_samples * 5))
 
     # Adjust spacing
@@ -537,7 +449,11 @@ def get_val_batch(dataloader):
 
         with torch.no_grad():
             preds = model(images)
-        preds = torch.argmax(preds, dim=1)  # Assuming the output is logits
+            if isinstance(preds, dict):
+                logits = preds['out']
+            else:
+                logits = preds
+        preds = torch.argmax(logits, dim=1)  # Assuming the output is logits
         return images, masks, preds
 
 # Fetch a batch and plot

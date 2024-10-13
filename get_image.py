@@ -5,6 +5,7 @@ import matplotlib.colors as mcolors
 import os
 
 from numpy.core.memmap import dtypedescr
+from sympy.physics.units.definitions.dimension_definitions import angle
 
 
 # Load the dataset file
@@ -41,8 +42,24 @@ for txt_file in scan_files:
 
 print(len(scan_labels))
 print(len(scan_files))
+import numpy as np
 
-def do_range_projection(points, proj_fov_up, proj_fov_down, save_image, save_label, proj_W, proj_H, R, G, B):
+
+def calculate_yaw(x, y, theta=0):
+    # 旋转坐标系，调整起始方向
+    x_prime = x * np.cos(theta) - y * np.sin(theta)
+    y_prime = x * np.sin(theta) + y * np.cos(theta)
+
+    # # 计算yaw角
+    # yaw = -np.arctan2(y_prime, x_prime)
+    #
+    # # 计算投影位置
+    # proj_x = 0.5 * (yaw / np.pi + 1.0)  # 范围 [0.0, 1.0]
+
+    return y_prime, x_prime
+
+# theta = np.radians(45)  # 45度角
+def do_range_projection(points, proj_fov_up, proj_fov_down, save_image, save_label, proj_W, proj_H, R, G, B, label, angle):
     """ Project a pointcloud into a spherical projection image.projection.
         Function takes no arguments because it can be also called externally
         if the value of the constructor was not set (in case you change your
@@ -68,7 +85,9 @@ def do_range_projection(points, proj_fov_up, proj_fov_down, save_image, save_lab
     depth_points[:, 2] = scan_z - np.mean(scan_z)
     depth = np.linalg.norm(depth_points, 2, axis=1)
     # get angles of all points
-    yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0])
+    y_new, x_new = calculate_yaw(depth_points[:, 0], depth_points[:, 1], theta=angle)
+    yaw = -np.arctan2(y_new, x_new)
+    # yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0])
     pitch = np.arcsin(depth_points[:, 2] / depth)
 
     # get projections in image coords
@@ -138,10 +157,12 @@ def do_range_projection(points, proj_fov_up, proj_fov_down, save_image, save_lab
     plt.axis('off')
     # plt.savefig(save_name+'.png', bbox_inches='tight', pad_inches=0)
     plt.close()
-    plt.imshow(proj)
-    plt.axis('off')
-    plt.savefig( save_image+'.png', bbox_inches='tight', pad_inches=0)
-    plt.close()
+    # plt.imshow(proj)
+    # plt.axis('off')
+    # plt.savefig( save_image+'.png', bbox_inches='tight', pad_inches=0)
+    # plt.close()
+    image_rgb = cv2.cvtColor(proj, cv2.COLOR_BGR2RGB)
+    cv2.imwrite(save_image+'.png', image_rgb)
 
 def scale_to_255(a, min, max, dtype=np.uint8):
     """ Scales an array of values from specified min, max range to 0-255
@@ -354,7 +375,7 @@ def point_cloud_2_birdseye(save_image, save_label, height_range, points, R,G,B,l
 
 from PP import *
 
-name = "PP"
+name = "SP"
 # if all goes well, open point cloud
 for i in np.arange(len(scan_files)):
     scan_path = scan_files[i]
@@ -370,10 +391,12 @@ for i in np.arange(len(scan_files)):
     B = scan[:, 5]  # get B
     label = np.loadtxt(label_path, dtype=np.float32)
     if (name == "SP"):
-        save_label = "/media/rosie/KINGSTON/research/SP/label/" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3] + '.label'
-        save_image= "/media/rosie/KINGSTON/research/SP/image/" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3]
-        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110, proj_fov_down=-110, proj_W=224,
-                            proj_H=224, R=R, G=G, B=B)
+        for i in range(16):
+            save_label = "/media/rosie/KINGSTON/research_2/SP/label/" + scan_path.split(os.sep)[-4] + '_' + str(i) + '_' + scan_path.split(os.sep)[-3] + '.label'
+            save_image= "/media/rosie/KINGSTON/research_2/SP/image/" + scan_path.split(os.sep)[-4] + '_' + str(i) + '_' + scan_path.split(os.sep)[-3]
+            num = (i+1)*20
+            do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110, proj_fov_down=-110, proj_W=512,
+                                proj_H=512, R=R, G=G, B=B, label=label, angle=num)
     elif (name == "BEV"):
         height_range_1 = (np.min( points[:, 2]), np.max( points[:, 2]))
         save_label = "/media/rosie/KINGSTON/research/BEV/label/1_" + scan_path.split(os.sep)[-4] + '_' + \
