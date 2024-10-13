@@ -1,7 +1,7 @@
-from testing_group_1 import *
+# from testing_group_1 import *
 
 import torch
-
+import torch.nn as nn
 num_classes = 14  # Set this to your specific task
 
 # get DeepLabV3
@@ -21,22 +21,32 @@ class DeepLabV3_Pretrained(nn.Module):
             param.requires_grad = False
 
     def forward(self, x):
-        return self.model(x)
+        outputs = self.model(x)
+        return outputs
 
-
+# class DeepLabV3_Pretrained(nn.Module):
+#     def __init__(self, num_classes=14, pretrained=True):
+#         super(DeepLabV3_Pretrained, self).__init__()
+#         # Load DeepLabV3 pretrained model
+#         self.model = models.segmentation.deeplabv3_resnet101(pretrained=pretrained)
+#         # self.model = models.segmentation.deeplabv3_resnet101(pretrained=1, num_classes=num_classes)
+#         # Change the classifier to match the number of classes (14)
+#         self.model.classifier[4] = nn.Conv2d(256, num_classes, kernel_size=(1, 1))
+#
+#         for param in self.model.parameters():
+#             param.requires_grad = False  # Freeze all layers
+#         for param in self.model.classifier[-1].parameters():
+#             param.requires_grad = True  # Unfreeze last Conv2d layer
+#         for param in self.model.classifier[-2].parameters():
+#             param.requires_grad = True  # Unfreeze the BatchNorm2d layer before Conv2d
+#
+#     def forward(self, x):
+#         return self.model(x)['out']
 
 #Get DPT
-# from transformers import DPTForImageSegmentation
-
-# DPT_Pretrained = DPTForSemanticSegmentation.from_pretrained("Intel/dpt-large-ade", num_labels=num_classes, ignore_mismatched_sizes=True)
-# # Freeze the transformer backbone for fine-tuning (optional)
-# for param in DPT_Pretrained.dpt.parameters():
-#     param.requires_grad = False
 from transformers import AutoModel, AutoTokenizer
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
 import torch.nn.functional as F
 
 class CustomDPTModel(nn.Module):
@@ -66,7 +76,7 @@ class CustomDPTModel(nn.Module):
         logits = self.segmentation_head(features_reshaped)
 
         # Resize logits to match the masks' size
-        logits_resized = F.interpolate(logits, size=(256, 256), mode='bilinear', align_corners=False)
+        logits_resized = F.interpolate(logits, size=(512, 512), mode='bilinear', align_corners=False)
 
         return logits_resized
 
@@ -74,35 +84,6 @@ class CustomDPTModel(nn.Module):
 
 #Get Segformer
 from transformers import SegformerForSemanticSegmentation
-# SegFormer_Pretrained = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512", num_labels=num_classes, ignore_mismatched_sizes=True)
-# # Freeze backbone for fine-tuning (optional)
-# for param in SegFormer_Pretrained.segformer.parameters():
-#     param.requires_grad = False
-
-
-# class SegFormerPretrained(nn.Module):
-#     def __init__(self, num_classes=14):
-#         super(SegFormerPretrained, self).__init__()
-#         # Load pretrained SegFormer model
-#         self.model = SegformerForSemanticSegmentation.from_pretrained(
-#             "nvidia/segformer-b0-finetuned-ade-512-512",
-#             num_labels=num_classes,  # Set number of classes
-#             ignore_mismatched_sizes=True  # Handle size mismatches
-#         )
-#
-#         # Freeze the backbone if needed
-#         for param in self.model.segformer.parameters():
-#             param.requires_grad = False
-#
-#     def forward(self, x):
-#         outputs = self.model(x)
-#         logits = outputs['logits']
-#
-#         # Resize logits to match target size
-#         # Assuming target size is (256, 256)
-#         logits_resized = F.interpolate(logits, size=(256, 256), mode='bilinear', align_corners=False)
-#
-#         return logits_resized
 class SegFormerPretrained(nn.Module):
     def __init__(self, num_classes=14):
         super(SegFormerPretrained, self).__init__()
@@ -144,3 +125,38 @@ class SegFormerPretrained(nn.Module):
         logits_resized = F.interpolate(logits, size=(512, 512), mode='bilinear', align_corners=False)
 
         return logits_resized
+
+
+class DeepLabV3Pretrained(nn.Module):
+    def __init__(self, num_classes=14):
+        super(DeepLabV3Pretrained, self).__init__()
+        # Load pretrained DeepLabV3 model with ResNet101 backbone
+        self.model = models.segmentation.deeplabv3_resnet101(pretrained=True)
+
+        # Modify the classifier for the desired number of classes
+        in_channels = self.model.classifier[4].in_channels
+        self.model.classifier[4] = nn.Conv2d(in_channels, num_classes, kernel_size=(1, 1))
+
+        # Print the full model structure to identify attributes
+        print("Full Model Structure:")
+        for name, module in self.model.named_modules():
+            print(name, module)
+
+        # Identify the classifier and unfreeze the last two layers
+        self.classifier = self.model.classifier
+        classifier_layers = list(self.classifier.children())
+
+        # Freeze all layers except the last two layers of the classifier
+        for layer in self.classifier.parameters():
+            layer.requires_grad = False
+        for layer in classifier_layers[-2:]:
+            for param in layer.parameters():
+                param.requires_grad = True
+
+    def forward(self, x):
+        outputs = self.model(x)['out']
+
+        # Resize outputs to match target size if necessary
+        outputs_resized = F.interpolate(outputs, size=(512, 512), mode='bilinear', align_corners=False)
+
+        return outputs_resized
