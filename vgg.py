@@ -341,13 +341,13 @@ mask_folder = '/home/xi/repo/research_2/PP/label/'
 # mask_folder = '/media/rosie/KINGSTON/Gen_image/PP/label/'
 
 train_files, val_files = split_dataset(image_folder, mask_folder)
-test_files = [f for f in os.listdir('/home/xi/repo/research_2/PP/label_test/') if f.endswith('.label')]
+test_files = [f for f in os.listdir('/home/xi/repo/research_2/PP/label_t/') if f.endswith('.label')]
 print(len(test_files))
 
 # Create datasets
 train_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=train_files, transform=get_transforms())
 val_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=val_files, transform=get_transforms())
-test_dataset = SegmentationDataset(image_folder='/home/xi/repo/research_2/PP/image_test/', mask_folder='/home/xi/repo/research_2/PP/label_test/',
+test_dataset = SegmentationDataset(image_folder='/home/xi/repo/research_2/PP/image_t/', mask_folder='/home/xi/repo/research_2/PP/label_t/',
                                         file_list=test_files, transform=get_transforms())
 
 # Create DataLoaders
@@ -357,13 +357,13 @@ test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=20, shuff
 sample = train_dataset[0]
 
 num_classes = 14  # Example number of classes
-train = 1
+train = 0
 if train:
     # model = VGGSegmentation(num_classes=num_classes).to(device)
-    # model = UNet(num_classes=num_classes).to(device)
+    model = UNet(num_classes=num_classes).to(device)
     # model = DPT.to(device)
     # model = SegFormerPretrained(num_classes=num_classes)
-    model = DeepLabV3
+    # model = DeepLabV3
     # model = DeepLabV3_Pretrained(num_classes=num_classes).to(device)
     if torch.cuda.device_count() >= 1:
         print(f"Let's use {torch.cuda.device_count()} GPUs!")
@@ -405,7 +405,7 @@ else:
         model = model.cuda()
     # model = VGGSegmentation(num_classes).to(device)
     # model = UNet(num_classes=num_classes).to(device)
-    model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_20241001_160048_.pth'))
+    model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_20241015_120101_.pth'))
     model.eval()
 
     # To store results
