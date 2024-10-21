@@ -4,19 +4,16 @@ from PIL import Image
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
 import torchvision.transforms as transforms
+import albumentations as A
 import albumentations.pytorch as A_pytorch
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
 import torchvision.models as models
-# Transform
-import albumentations as A
 # Visualize the testing results
 import matplotlib.pyplot as plt
 import cv2
-
-
+import torch.nn.functional as F
 torch.cuda.empty_cache()
 
 
@@ -104,6 +101,9 @@ class SegmentationDataset(Dataset):
         # print(" mask tensor after:", mask_tensor.shape)
         return {'image': image_tensor, 'mask': mask_tensor}
 
+
+# Transform
+import albumentations as A
 def get_transforms():
     return A.Compose([
         # A.HorizontalFlip(),
@@ -260,7 +260,7 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
             running_loss += loss.item() * images.size(0)
 
             # Calculate training accuracy
-            _, predicted = torch.max(logits, 1)
+            _, predicted = torch.max(outputs, 1)
             correct_train += (predicted == masks).sum().item()
             total_train += masks.numel()
 
@@ -294,7 +294,7 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
                 val_loss += loss.item() * images.size(0)
 
                 # Calculate validation accuracy
-                _, predicted = torch.max(logits, 1)
+                _, predicted = torch.max(outputs, 1)
                 correct_val += (predicted == masks).sum().item()
                 total_val += masks.numel()
 
@@ -341,13 +341,13 @@ mask_folder = '/home/xi/repo/research_2/PP/label/'
 # mask_folder = '/media/rosie/KINGSTON/Gen_image/PP/label/'
 
 train_files, val_files = split_dataset(image_folder, mask_folder)
-test_files = [f for f in os.listdir('/home/xi/repo/research_2/PP/label_test/') if f.endswith('.label')]
+test_files = [f for f in os.listdir('/home/xi/repo/research_2/PP/label_t/') if f.endswith('.label')]
 print(len(test_files))
 
 # Create datasets
 train_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=train_files, transform=get_transforms())
 val_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=val_files, transform=get_transforms())
-test_dataset = SegmentationDataset(image_folder='/home/xi/repo/research_2/PP/image_test/', mask_folder='/home/xi/repo/research_2/PP/label_test/',
+test_dataset = SegmentationDataset(image_folder='/home/xi/repo/research_2/PP/image_t/', mask_folder='/home/xi/repo/research_2/PP/label_t/',
                                         file_list=test_files, transform=get_transforms())
 
 # Create DataLoaders
@@ -357,21 +357,13 @@ test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=20, shuff
 sample = train_dataset[0]
 
 num_classes = 14  # Example number of classes
-
-# get model
-from testing_group_1 import *
-from testing_group_2 import *
-from testing_group_3 import *
-
-
-
 train = 0
 if train:
     # model = VGGSegmentation(num_classes=num_classes).to(device)
-    # model = UNet(num_classes=num_classes).to(device)
+    model = UNet(num_classes=num_classes).to(device)
     # model = DPT.to(device)
     # model = SegFormerPretrained(num_classes=num_classes)
-    model = DeepLabV3
+    # model = DeepLabV3
     # model = DeepLabV3_Pretrained(num_classes=num_classes).to(device)
     if torch.cuda.device_count() >= 1:
         print(f"Let's use {torch.cuda.device_count()} GPUs!")
@@ -413,7 +405,7 @@ else:
         model = model.cuda()
     # model = VGGSegmentation(num_classes).to(device)
     # model = UNet(num_classes=num_classes).to(device)
-    model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_20241001_160048_.pth'))
+    model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_20241015_120101_.pth'))
     model.eval()
 
     # To store results
@@ -436,7 +428,7 @@ else:
             # outputs = outputs['logits']
             outputs = F.interpolate(outputs, size=(512, 512), mode='bilinear', align_corners=False)
         # Convert outputs to class predictions
-        preds = torch.argmax(logits, dim=1)  # Shape: [batch_size, height, width]
+        preds = torch.argmax(outputs, dim=1)  # Shape: [batch_size, height, width]
 
         # Calculate Dice score, IoU, and accuracy for each class
         for cls in range(num_classes):
@@ -521,7 +513,7 @@ def tensor_to_numpy(tensor):
 
 
 # Plot images, masks, and predictions
-def plot_results(images, masks, preds, num_samples=2):
+def plot_results(images, masks, preds, num_samples=4):
     fig, axes = plt.subplots(num_samples, 3, figsize=(15, num_samples * 5))
 
     # Adjust spacing
