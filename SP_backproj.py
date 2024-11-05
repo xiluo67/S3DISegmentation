@@ -159,6 +159,7 @@ class SP_backproj():
         proj[:, :, 2] = proj_b
 
         np.savetxt(save_label, proj_l)
+        cv2.imwrite('/home/rosie/Concordia/research/pred/label_image'+'.png', proj_l)
 
         plt.imshow(colorized_image)
         plt.axis('off')
@@ -319,7 +320,42 @@ def visualize_segmentation(original_image, segmented_image):
 
     plt.show()
 
+def compute_2d_acc(image_pred, image_mask):
+    num_classes = len(np.unique(image_mask))
+    metrics = {
+        "accuracy": 0,
+        "precision": np.zeros(num_classes),
+        "recall": np.zeros(num_classes),
+        "IoU": np.zeros(num_classes)
+    }
+    
+    # Flatten arrays for easier computation
+    ground_truth = image_mask.flatten()
+    prediction = image_pred.flatten()
 
+    if isinstance(prediction, torch.Tensor):
+        prediction = prediction.numpy()
+    if isinstance(ground_truth, torch.Tensor):
+        ground_truth = ground_truth.numpy()
+    
+    # Overall accuracy
+    metrics["accuracy"] = np.sum(ground_truth == prediction) / ground_truth.size
+
+    # Per-class metrics
+    for cls in range(num_classes):
+        # True Positive (TP): Predicted cls, Ground Truth cls
+        TP = np.sum((prediction == cls) & (ground_truth == cls))
+        # False Positive (FP): Predicted cls, Ground Truth is not cls
+        FP = np.sum((prediction == cls) & (ground_truth != cls))
+        # False Negative (FN): Ground Truth cls, Predicted is not cls
+        FN = np.sum((prediction != cls) & (ground_truth == cls))
+        
+        # Calculate Precision, Recall, IoU for each class
+        metrics["precision"][cls] = TP / (TP + FP) if (TP + FP) > 0 else 0
+        metrics["recall"][cls] = TP / (TP + FN) if (TP + FN) > 0 else 0
+        metrics["IoU"][cls] = TP / (TP + FP + FN) if (TP + FP + FN) > 0 else 0
+
+    return metrics
 
 # Get image
 point_cloud = np.loadtxt("/media/rosie/KINGSTON/Dataset_2/Stanford3dDataset_v1.2_Aligned_Version/Area_4/conferenceRoom_2/room_data/conferenceRoom_2.txt")
@@ -353,7 +389,26 @@ with torch.no_grad():
 
     # Convert logits to class predictions
     label_image = torch.argmax(logits, dim=1)  # Shape: [batch_size, height, width]
+    image_mask = cv2.imread("pred/label_image.png", cv2.IMREAD_GRAYSCALE)
+    image_mask = torch.tensor(image_mask, dtype=torch.float32).to('cpu')  # Convert to PyTorch tensor
+
+    # Ensure label_image is on CPU and reshape to match image_mask's shape
+    label_image = label_image[0].detach().cpu().float().reshape(image_mask.shape)
+    print(label_image.shape)
+    print(image_mask.shape)
+    matrix = compute_2d_acc(label_image, image_mask)
+    print("acc is %f/n", matrix["accuracy"])
+    print("IoU is %f", matrix["IoU"])
     label_image = postprocess_output(label_image)
+    
+    num_colors = np.max(label_image) + 1
+
+    # Define a colormap with the specified number of colors
+    base_colormap = plt.colormaps.get_cmap('viridis')
+    colormap = base_colormap(np.linspace(0, 1, num_colors))
+    norm = mcolors.Normalize(vmin=np.min(label_image), vmax=np.max(label_image))
+    colorized_image = mcolors.ListedColormap(colormap)(norm(label_image))
+    cv2.imwrite('/home/rosie/Concordia/research/pred/label_image_pred'+'.png', label_image*255)
     unique_classes = np.unique(label_image)
     print("Unique classes in label image:", unique_classes)
 
