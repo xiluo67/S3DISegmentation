@@ -7,7 +7,12 @@ import numpy as np
 import os
 # from sympy.strategies.core import switch
 
+"""
+This file is used for Perspective Projection: projecting 3D points to 2D plane
+----------------------------------------------------------------------------------------------------------
+Date: 2024.11
 
+"""
 def look_at(camera_position, target, up):
     forward = np.float_(target - camera_position)
     forward /= np.linalg.norm(forward)

@@ -9,6 +9,13 @@ import torchvision.transforms as transforms
 import cv2
 from PIL import Image
 import matplotlib.pyplot as plt
+
+"""
+This file is used for back projection process for perspective projection (reference version / not in use)
+----------------------------------------------------------------------------------------------------------
+Date: 2024.11
+
+"""
 class UNet(nn.Module):
     def __init__(self, num_classes=14):
         super(UNet, self).__init__()

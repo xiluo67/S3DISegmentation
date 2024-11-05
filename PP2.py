@@ -7,6 +7,15 @@ import numpy as np
 import os
 import open3d as o3d
 # from sympy.strategies.core import switch
+
+"""
+This file is used for Perspective Projection: projecting 3D points to 2D plane (Optimized Version, adjust
+parameters like fov/camera position) for different room type
+----------------------------------------------------------------------------------------------------------
+Date: 2024.11
+
+"""
+
 def vis(points, color):
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points)

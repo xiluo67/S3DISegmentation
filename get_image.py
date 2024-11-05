@@ -6,6 +6,12 @@ import os
 
 from numpy.core.memmap import dtypedescr
 
+"""
+This file is used for Spherical Projection and Birds Eye View Projection: projecting 3D points to 2D plane
+----------------------------------------------------------------------------------------------------------
+Date: 2024.11
+
+"""
 
 # Load the dataset file
 def find_txt_files(base_dir):

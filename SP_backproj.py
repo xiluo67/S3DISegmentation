@@ -3,9 +3,18 @@ import cv2
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import  torch
+
+"""
+This file is used for spherical projection back projection process: projecting the predicted 2D 
+image mask back to 3D space.
+-----------------------------------------------------------------------------------------------------
+Date: 2024.11
+
+"""
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def calculate_yaw(x, y, theta=0):
-    # 旋转坐标系，调整起始方向
+
     x_prime = x * np.cos(theta) - y * np.sin(theta)
     y_prime = x * np.sin(theta) + y * np.cos(theta)
 

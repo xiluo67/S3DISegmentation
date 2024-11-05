@@ -17,6 +17,12 @@ import torch.nn.functional as F
 torch.cuda.empty_cache()
 
 
+"""
+This file is used for constructing U-Net CNN and train/save the model
+-----------------------------------------------------------------------------------------------------
+Date: 2024.11
+
+"""
 def visualize_predictions(images, masks, preds, idx):
     plt.figure(figsize=(15, 5))
 

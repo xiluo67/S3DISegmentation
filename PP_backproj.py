@@ -10,6 +10,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 from PIL import Image
+
+"""
+This file is used for perspective projection back projection process: projecting the predicted 2D 
+image mask back to 3D space.
+-----------------------------------------------------------------------------------------------------
+Date: 2024.11
+
+"""
+
 # from sympy.strategies.core import switch
 class UNet(nn.Module):
     def __init__(self, num_classes=14):
