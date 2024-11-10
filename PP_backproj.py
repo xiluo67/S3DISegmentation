@@ -345,6 +345,7 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
     # sub_pred[valid_indices, 6] = label_image.cpu()[y_coords[valid_indices], x_coords[valid_indices]]
     sub_pred[valid_indices, 6] = proj_l[y_coords[valid_indices], x_coords[valid_indices]]
     whole_set.append(np.transpose(sub_pred))
+
 def gen_the_pp_image(scan, label, scan_path):
     fov = np.pi / 1.5
     for f in np.arange(3):

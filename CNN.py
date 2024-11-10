@@ -15,7 +15,8 @@ import matplotlib.pyplot as plt
 import cv2
 import torch.nn.functional as F
 torch.cuda.empty_cache()
-
+from testing_group_3 import *
+from testing_group_2 import *
 
 """
 This file is used for constructing U-Net CNN and train/save the model
@@ -52,14 +53,13 @@ def visualize_predictions(images, masks, preds, idx):
     plt.show()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = torch.device('cpu')
-# device = torch.device('cpu')
+
 def split_dataset(image_folder, mask_folder, train_ratio=0.8, val_ratio=0.2, test_ratio=0.01):
-    image_files = [f for f in os.listdir(image_folder) if f.endswith('.jpg')]
+    image_files = [f for f in os.listdir(image_folder) if f.endswith('.png')]
 
     # Make sure corresponding mask files exist
-    mask_files = [f.replace('.jpg', '.label') for f in image_files if
-                  os.path.exists(os.path.join(mask_folder, f.replace('.jpg', '.label')))]
+    mask_files = [f.replace('.png', '.label') for f in image_files if
+                  os.path.exists(os.path.join(mask_folder, f.replace('.png', '.label')))]
 
     # Split dataset into training+validation and test sets
     # train_val_files, test_files = train_test_split(mask_files, test_size=test_ratio, random_state=42)
@@ -83,7 +83,7 @@ class SegmentationDataset(Dataset):
 
     def __getitem__(self, idx):
         mask_file = self.file_list[idx]
-        image_file = mask_file.replace('.label', '.jpg')
+        image_file = mask_file.replace('.label', '.png')
 
         image_path = os.path.join(self.image_folder, image_file)
         mask_path = os.path.join(self.mask_folder, mask_file)
@@ -118,7 +118,7 @@ def get_transforms():
         #     A.RandomBrightnessContrast(),
         #     A.HueSaturationValue()
         # ], p=0.3),
-        A.Resize(height=512, width=512, always_apply=True),
+        A.Resize(height=1024, width=1024, always_apply=True),
         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         A_pytorch.ToTensorV2()  # Ensure correct import and usage
     ], p=1.0)
@@ -223,8 +223,6 @@ class UNet(nn.Module):
 
         return out
 
-from testing_group_3 import *
-from testing_group_2 import *
 def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=25, patience=5):
     early_stopping = EarlyStopping(patience=patience)
 
@@ -340,168 +338,6 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
     plt.show()  # Show the final plot
     return model
 
-# Split the dataset
-image_folder = '/home/xi/repo/research_2/PP/image/'
-mask_folder = '/home/xi/repo/research_2/PP/label/'
-# image_folder = '/media/rosie/KINGSTON/Gen_image/PP/image/'
-# mask_folder = '/media/rosie/KINGSTON/Gen_image/PP/label/'
-
-train_files, val_files = split_dataset(image_folder, mask_folder)
-test_files = [f for f in os.listdir('/home/xi/repo/research_2/PP/label_t/') if f.endswith('.label')]
-print(len(test_files))
-
-# Create datasets
-train_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=train_files, transform=get_transforms())
-val_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=val_files, transform=get_transforms())
-test_dataset = SegmentationDataset(image_folder='/home/xi/repo/research_2/PP/image_t/', mask_folder='/home/xi/repo/research_2/PP/label_t/',
-                                        file_list=test_files, transform=get_transforms())
-
-# Create DataLoaders
-train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=20, shuffle=True, num_workers=10, drop_last=True)
-val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=20, shuffle=False, num_workers=10, drop_last=True)
-test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=20, shuffle=False, num_workers=10, drop_last=True)
-sample = train_dataset[0]
-
-num_classes = 14  # Example number of classes
-train = 0
-if train:
-    # model = VGGSegmentation(num_classes=num_classes).to(device)
-    model = UNet(num_classes=num_classes).to(device)
-    # model = DPT.to(device)
-    # model = SegFormerPretrained(num_classes=num_classes)
-    # model = DeepLabV3
-    # model = DeepLabV3_Pretrained(num_classes=num_classes).to(device)
-    if torch.cuda.device_count() >= 1:
-        print(f"Let's use {torch.cuda.device_count()} GPUs!")
-        model = nn.DataParallel(model)
-        model = model.cuda()
-
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1.2e-4)
-
-    model = train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=200, patience=5)
-    plt.close()
-    # Ensure the log directory exists
-    log_dir = "./log"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-
-    # Generate the timestamp
-    from datetime import datetime
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    # Save the model with timestamp in the filename
-    model_filename = f"model_{timestamp}_" + ".pth"
-    model_path = os.path.join(log_dir, model_filename)
-    torch.save(model.state_dict(), model_path)
-
-    print(f"Model saved to {model_path}")
-
-else:
-    model = UNet(num_classes=num_classes).to(device)
-    # model = Segformer.to(device)
-    # model = SegFormerPretrained(num_classes=num_classes)
-    # model = DeepLabV3.to(device)
-    # model = SegFormerPretrained(num_classes=num_classes)
-    if torch.cuda.device_count() >= 1:
-        print(f"Let's use {torch.cuda.device_count()} GPUs!")
-        model = nn.DataParallel(model)
-        model = model.to(device)
-        model = model.cuda()
-    # model = VGGSegmentation(num_classes).to(device)
-    # model = UNet(num_classes=num_classes).to(device)
-    model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_20241015_120101_.pth'))
-    model.eval()
-
-    # To store results
-    dice_scores = []
-    iou_scores = []
-    accuracy_scores = []
-    precision_scores = []
-    recall_scores = []
-
-    # Iterate through the dataloader
-    for batch_index, batch in enumerate(test_dataloader):
-        images = batch['image'].to(device)
-        masks = batch['mask'].to(device)  # Shape: [batch_size, height, width]
-
-        # Get model predictions
-        outputs = model(images)
-
-        if isinstance(outputs, dict):
-            outputs = outputs['out']
-            # outputs = outputs['logits']
-            outputs = F.interpolate(outputs, size=(512, 512), mode='bilinear', align_corners=False)
-        # Convert outputs to class predictions
-        preds = torch.argmax(outputs, dim=1)  # Shape: [batch_size, height, width]
-
-        # Calculate Dice score, IoU, and accuracy for each class
-        for cls in range(num_classes):
-            pred_cls = (preds == cls).float()  # Binary mask for predictions
-            mask_cls = (masks == cls).float()  # Binary mask for ground truth
-
-            # Ensure shapes match before calculation
-            if pred_cls.shape != mask_cls.shape:
-                print(f"Batch {batch_index} - Shape mismatch for class {cls}:")
-                print(f"Pred_cls Shape: {pred_cls.shape}")
-                print(f"Mask_cls Shape: {mask_cls.shape}")
-
-                # Resize pred_cls and mask_cls to match shapes if necessary
-                pred_cls = F.interpolate(pred_cls.unsqueeze(1), size=mask_cls.shape[1:], mode='bilinear',
-                                         align_corners=False).squeeze(1)
-                mask_cls = F.interpolate(mask_cls.unsqueeze(1), size=pred_cls.shape[1:], mode='bilinear',
-                                         align_corners=False).squeeze(1)
-
-                print(f"Batch {batch_index} - Resized Pred_cls Shape: {pred_cls.shape}")
-                print(f"Batch {batch_index} - Resized Mask_cls Shape: {mask_cls.shape}")
-
-            # Calculate Dice score
-            intersection = torch.sum(pred_cls * mask_cls)
-            dice = (2. * intersection) / (torch.sum(pred_cls) + torch.sum(mask_cls) + 1e-8)
-            iou = intersection / (torch.sum(pred_cls) + torch.sum(mask_cls) - intersection + 1e-8)
-
-            # Calculate precision
-            true_positives = intersection
-            false_positives = torch.sum(pred_cls) - true_positives
-            if true_positives + false_positives > 0:
-                precision = true_positives / (true_positives + false_positives)
-            else:
-                precision = 0.0
-
-            # Calculate recall
-            false_negatives = torch.sum(mask_cls) - true_positives
-            if true_positives + false_negatives > 0:
-                recall = true_positives / (true_positives + false_negatives)
-            else:
-                recall = 0.0
-
-            # Calculate accuracy
-            correct_pixels = torch.sum(pred_cls * mask_cls)
-            total_pixels = torch.sum(mask_cls)
-            accuracy = correct_pixels / (total_pixels + 1e-8)  # Avoid division by zero
-
-            # Append scores
-            dice_scores.append(dice)
-            iou_scores.append(iou)
-            precision_scores.append(precision)
-            recall_scores.append(recall)
-            accuracy_scores.append(accuracy)
-
-    # Average Dice, IoU, precision, recall, and accuracy scores across all classes
-    avg_dice = sum(dice_scores) / (len(dice_scores) if dice_scores else 1)
-    avg_iou = sum(iou_scores) / (len(iou_scores) if iou_scores else 1)
-    avg_precision = sum(precision_scores) / (len(precision_scores) if precision_scores else 1)
-    avg_recall = sum(recall_scores) / (len(recall_scores) if recall_scores else 1)
-    avg_accuracy = sum(accuracy_scores) / (len(accuracy_scores) if accuracy_scores else 1)
-
-    print(f"Average Dice Score: {avg_dice:.4f}")
-    print(f"Average IoU Score: {avg_iou:.4f}")
-    print(f"Average Precision: {avg_precision:.4f}")
-    print(f"Average Recall: {avg_recall:.4f}")
-    print(f"Average Accuracy: {avg_accuracy:.4f}")
-
-# Function to convert tensor to numpy array for plotting
 def tensor_to_numpy(tensor):
     tensor = tensor.cpu().numpy()
     if tensor.ndim == 4:  # For batch of images: [batch_size, channels, height, width]
@@ -517,7 +353,21 @@ def tensor_to_numpy(tensor):
     else:
         raise ValueError("Unsupported tensor shape")
 
+cmap = plt.get_cmap('tab20')
+# Get a batch of data from the validation dataloader
+def get_val_batch(dataloader, model):
+    for batch in dataloader:
+        images = batch['image'].to(device)
+        masks = batch['mask'].to(device)  # Shape: [batch_size, height, width]
 
+        # with torch.no_grad():
+        #     preds = model(images)
+        #
+        #     if isinstance(preds, dict):
+        #         preds = preds['out']
+        #         preds = F.interpolate(preds, size=(512, 512), mode='bilinear', align_corners=False)
+        # preds = torch.argmax(preds, dim=1)  # Assuming the output is logits
+        return images, masks, masks
 # Plot images, masks, and predictions
 def plot_results(images, masks, preds, num_samples=4):
     fig, axes = plt.subplots(num_samples, 3, figsize=(15, num_samples * 5))
@@ -534,6 +384,7 @@ def plot_results(images, masks, preds, num_samples=4):
         wspace=0.0
     )
 
+    # Visualize images, masks, and predictions with colors for labels
     for i in range(num_samples):
         # Image
         ax = axes[i, 0]
@@ -541,37 +392,38 @@ def plot_results(images, masks, preds, num_samples=4):
         ax.set_title("Image", fontsize=6, fontweight='light')
         ax.axis('off')
 
-        # Mask
+        # Mask (with color map)
         ax = axes[i, 1]
-        ax.imshow(tensor_to_numpy(masks[i]), cmap='gray', interpolation='none')
+        ax.imshow(tensor_to_numpy(masks[i]), cmap=cmap, interpolation='none')  # Apply colormap here
         ax.set_title("Mask", fontsize=6, fontweight='light')
         ax.axis('off')
 
-        # Prediction
+        # Prediction (with color map)
         ax = axes[i, 2]
-        ax.imshow(tensor_to_numpy(preds[i]), cmap='gray', interpolation='none')
+        ax.imshow(tensor_to_numpy(preds[i]), cmap=cmap, interpolation='none')  # Apply colormap here
         ax.set_title("Prediction", fontsize=6, fontweight='light')
         ax.axis('off')
+    # for i in range(num_samples):
+    #     # Image
+    #     ax = axes[i, 0]
+    #     ax.imshow(tensor_to_numpy(images[i] * 255), interpolation='none')
+    #     ax.set_title("Image", fontsize=6, fontweight='light')
+    #     ax.axis('off')
+    #
+    #     # Mask
+    #     ax = axes[i, 1]
+    #     ax.imshow(tensor_to_numpy(masks[i]), cmap='gray', interpolation='none')
+    #     ax.set_title("Mask", fontsize=6, fontweight='light')
+    #     ax.axis('off')
+    #
+    #     # Prediction
+    #     ax = axes[i, 2]
+    #     ax.imshow(tensor_to_numpy(preds[i]), cmap='gray', interpolation='none')
+    #     ax.set_title("Prediction", fontsize=6, fontweight='light')
+    #     ax.axis('off')
 
     plt.tight_layout()
     plt.show()
 
 
-# Get a batch of data from the validation dataloader
-def get_val_batch(dataloader):
-    for batch in dataloader:
-        images = batch['image'].to(device)
-        masks = batch['mask'].to(device)  # Shape: [batch_size, height, width]
 
-        with torch.no_grad():
-            preds = model(images)
-
-            if isinstance(preds, dict):
-                preds = preds['out']
-                preds = F.interpolate(preds, size=(512, 512), mode='bilinear', align_corners=False)
-        preds = torch.argmax(preds, dim=1)  # Assuming the output is logits
-        return images, masks, preds
-
-# Fetch a batch and plot
-images, masks, preds = get_val_batch(val_dataloader)
-plot_results(images, masks, preds)

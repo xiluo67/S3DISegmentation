@@ -7,11 +7,12 @@ import torchvision.transforms as transforms
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 from PIL import Image
-
+import torch.nn as nn
+import albumentations as A
+import albumentations.pytorch as A_pytorch
+import open3d as o3d
 # -----------------------------------------------------
-from testing_group_2 import *
-from testing_group_3 import *
-
+from CNN import *
 """
 This file is used for spherical projection back projection process: projecting the predicted 2D 
 image mask back to 3D space.
@@ -19,8 +20,6 @@ image mask back to 3D space.
 Date: 2024.11
 
 """
-import open3d as o3d
-
 def visualize_points_with_colored_labels_open3d(points):
     # Assuming points is an (N, 9) array where:
     # points[:, 0:3] -> xyz coordinates
@@ -82,8 +81,8 @@ class SP_backproj():
         scan_z = self.points[:, 2] - z_means
 
         R = self.points[:, 3]
-        G = self.points[:, 3]
-        B = self.points[:, 3]
+        G = self.points[:, 4]
+        B = self.points[:, 5]
 
         # get depth of all points
         depth_points = np.zeros(self.points.shape)
@@ -145,9 +144,9 @@ class SP_backproj():
         proj_mask = (proj_idx > 0).astype(np.int32)
 
         num_colors = np.max(proj_l) + 1
-
-        # Define a colormap with the specified number of colors
-        base_colormap = plt.colormaps.get_cmap('viridis')
+        #
+        # # Define a colormap with the specified number of colors
+        base_colormap = plt.get_cmap('viridis')
         colormap = base_colormap(np.linspace(0, 1, num_colors))
         norm = mcolors.Normalize(vmin=np.min(proj_l), vmax=np.max(proj_l))
         colorized_image = mcolors.ListedColormap(colormap)(norm(proj_l))
@@ -157,21 +156,23 @@ class SP_backproj():
         proj[:, :, 0] = proj_r
         proj[:, :, 1] = proj_g
         proj[:, :, 2] = proj_b
+        # Save the projected mask into label folder
+        if not os.path.exists("./SP/label/"):
+            # Create the folder if it doesn't exist
+            os.makedirs("./SP/label/")
+        np.savetxt("./SP/label/" + save_label, proj_l)
+        cv2.imwrite('./SP/label/label_image_gt_mask' + '.png', colorized_image*255)
+        cv2.imwrite('./SP/label/label_image'+'.png', proj_l)
 
-        np.savetxt(save_label, proj_l)
-        cv2.imwrite('/home/rosie/Concordia/research/pred/label_image'+'.png', proj_l)
-
-        plt.imshow(colorized_image)
+        # Save the projected image into image folder
+        if not os.path.exists("./SP/image/"):
+            # Create the folder if it doesn't exist
+            os.makedirs("./SP/image/")
+        plt.imshow(proj)
         plt.axis('off')
-        # plt.savefig(save_name+'.png', bbox_inches='tight', pad_inches=0)
+        plt.savefig("./SP/image/" + save_image + '.png', bbox_inches='tight', pad_inches=0)
         plt.close()
-        # plt.imshow(proj)
-        # plt.axis('off')
-        # plt.savefig( save_image+'.png', bbox_inches='tight', pad_inches=0)
-        # plt.close()
-        image_rgb = cv2.cvtColor(proj, cv2.COLOR_BGR2RGB)
-        cv2.imwrite(save_image+'.png', image_rgb)
-        return image_rgb
+        return proj
 
     def project_point_to_2d(self, label_image, proj_W, proj_H, proj_fov_up, proj_fov_down):
         # Laser parameters
@@ -241,7 +242,7 @@ class SP_backproj():
         projected_features = projected_points[:, :-3]  # Exclude proj_x, proj_y, pred_label
         projected_labels = projected_points[:, -1]  # Only pred_label
         unique_classes = np.unique(projected_labels)
-        print("Unique classes:", unique_classes)
+        print("Unique classes in label:", unique_classes)
 
         if len(unprojected_points) > 0:
             # Apply KNN
@@ -261,25 +262,36 @@ class SP_backproj():
 
         return all_points
 
+transform = A.Compose([
+        # A.HorizontalFlip(),
+        # A.RandomRotate90(),
+        # A.OneOf([
+        #     A.RandomBrightnessContrast(),
+        #     A.HueSaturationValue()
+        # ], p=0.3),
+        A.Resize(height=1024, width=1024, always_apply=True),
+        A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        A_pytorch.ToTensorV2()  # Ensure correct import and usage
+    ], p=1.0)
+
 def preprocess_image(image_array):
-    # Convert to PIL Image if necessary
-    if isinstance(image_array, np.ndarray):
-        image = Image.fromarray(image_array)
-    else:
-        image = image_array
+    if isinstance(image_array, Image.Image):
+        # Convert PIL Image to NumPy array
+        image_array = np.array(image_array)
 
-    # Define the preprocessing transformations
-    transform = transforms.Compose([
-        transforms.Resize((512, 512)),  # Adjust to match your model input size
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Example normalization
-    ])
+        # Check if image_array is a valid NumPy array (3D: height, width, channels)
+    if not isinstance(image_array, np.ndarray):
+        raise TypeError("The input image must be a numpy array.")
 
-    # Apply transformations
-    image = transform(image).unsqueeze(0)  # Add batch dimension
-    return image
+        # Apply transformations: Pass the image as 'image=image'
+    transformed = transform(image=image_array)  # Apply transform
+    transformed_image = transformed['image']  # Get the transformed image
 
-def postprocess_output(output, target_size=(512, 512)):
+    # Add batch dimension for model input (C, H, W)
+    transformed_image = transformed_image.unsqueeze(0)
+    return transformed_image
+
+def postprocess_output(output, target_size=(1024, 1024)):
     """
     Post-process the model output to ensure it has a shape of target_size.
 
@@ -302,8 +314,8 @@ def postprocess_output(output, target_size=(512, 512)):
         raise ValueError("Unexpected output shape: {}".format(output.shape))
 
     # Ensure the label_image is in the target size (256, 256)
-    if label_image.shape != target_size:
-        label_image = resize(label_image, target_size, mode='reflect', anti_aliasing=False)
+    if label_image.shape[:2] != target_size:
+        label_image = cv2.resize(label_image, (target_size[1], target_size[0]), interpolation=cv2.INTER_LINEAR)
 
     return label_image
 
@@ -341,77 +353,188 @@ def compute_2d_acc(image_pred, image_mask):
     # Overall accuracy
     metrics["accuracy"] = np.sum(ground_truth == prediction) / ground_truth.size
 
+    overall_TP = 0
+    overall_FP = 0
+    overall_FN = 0
     # Per-class metrics
     for cls in range(num_classes):
         # True Positive (TP): Predicted cls, Ground Truth cls
         TP = np.sum((prediction == cls) & (ground_truth == cls))
+        overall_TP += TP
         # False Positive (FP): Predicted cls, Ground Truth is not cls
         FP = np.sum((prediction == cls) & (ground_truth != cls))
+        overall_FP += FP
         # False Negative (FN): Ground Truth cls, Predicted is not cls
         FN = np.sum((prediction != cls) & (ground_truth == cls))
+        overall_FN += FN
         
         # Calculate Precision, Recall, IoU for each class
         metrics["precision"][cls] = TP / (TP + FP) if (TP + FP) > 0 else 0
         metrics["recall"][cls] = TP / (TP + FN) if (TP + FN) > 0 else 0
         metrics["IoU"][cls] = TP / (TP + FP + FN) if (TP + FP + FN) > 0 else 0
 
-    return metrics
+    IoU = overall_TP / (overall_TP + overall_FP + overall_FN) if (overall_TP + overall_FP + overall_FN) > 0 else 0
+
+    print("2D acc is %f", metrics["accuracy"])
+    print("2D Overall IoU is %f", IoU)
+    print("2D IoU is %f", metrics["IoU"])
+
+def get_3d_eval_res(predicted_labels, ground_truth_labels):
+    # Determine the unique classes from the ground truth labels
+    classes = np.unique(ground_truth_labels)
+    num_classes = len(classes)
+    print("Unique classes in gt:", classes)
+    # Initialize variables to store the metrics
+    accuracy = np.mean(predicted_labels == ground_truth_labels)
+    class_accuracy = np.zeros(num_classes)
+    precision = np.zeros(num_classes)
+    recall = np.zeros(num_classes)
+    iou = np.zeros(num_classes)
+
+    # Initialize accumulators for global metrics
+    global_tp = 0
+    global_fp = 0
+    global_fn = 0
+    global_gt_total = 0
+
+    # Create a mapping from class values to indices
+    class_to_index = {cls: idx for idx, cls in enumerate(classes)}
+
+    for class_value in classes:
+        class_idx = class_to_index[class_value]
+
+        # True positives, false positives, and false negatives for each class
+        true_positives = np.sum((predicted_labels == class_value) & (ground_truth_labels == class_value))
+        false_positives = np.sum((predicted_labels == class_value) & (ground_truth_labels != class_value))
+        false_negatives = np.sum((predicted_labels != class_value) & (ground_truth_labels == class_value))
+        total_ground_truth = np.sum(ground_truth_labels == class_value)
+
+        # Class-specific accuracy
+        if total_ground_truth > 0:
+            class_accuracy[class_idx] = true_positives / total_ground_truth
+        else:
+            class_accuracy[class_idx] = 0.0
+
+        # Precision: TP / (TP + FP)
+        if true_positives + false_positives > 0:
+            precision[class_idx] = true_positives / (true_positives + false_positives)
+        else:
+            precision[class_idx] = 0.0
+
+        # Recall: TP / (TP + FN)
+        if true_positives + false_negatives > 0:
+            recall[class_idx] = true_positives / (true_positives + false_negatives)
+        else:
+            recall[class_idx] = 0.0
+
+        # IoU: TP / (TP + FP + FN)
+        if true_positives + false_positives + false_negatives > 0:
+            iou[class_idx] = true_positives / (true_positives + false_positives + false_negatives)
+        else:
+            iou[class_idx] = 0.0
+
+        # Accumulate for global metrics
+        global_tp += true_positives
+        global_fp += false_positives
+        global_fn += false_negatives
+        global_gt_total += total_ground_truth
+
+        # Print metrics for the current class
+        print(f"Class {class_value}:")
+        print(f"  Accuracy: {class_accuracy[class_idx]:.4f}")
+        print(f"  Precision: {precision[class_idx]:.4f}")
+        print(f"  Recall: {recall[class_idx]:.4f}")
+        print(f"  IoU: {iou[class_idx]:.4f}")
+        print()
+
+    # Compute overall metrics
+    if global_gt_total > 0:
+        overall_accuracy = global_tp / global_gt_total
+    else:
+        overall_accuracy = 0.0
+
+    if global_tp + global_fp > 0:
+        overall_precision = global_tp / (global_tp + global_fp)
+    else:
+        overall_precision = 0.0
+
+    if global_tp + global_fn > 0:
+        overall_recall = global_tp / (global_tp + global_fn)
+    else:
+        overall_recall = 0.0
+
+    if global_tp + global_fp + global_fn > 0:
+        overall_iou = global_tp / (global_tp + global_fp + global_fn)
+    else:
+        overall_iou = 0.0
+
+    print(f"Overall Accuracy: {overall_accuracy:.4f}")
+    print(f"Overall Precision: {overall_precision:.4f}")
+    print(f"Overall Recall: {overall_recall:.4f}")
+    print(f"Overall IoU: {overall_iou:.4f}")
+    return overall_accuracy, overall_precision, overall_recall, overall_iou
 
 # Get image
-point_cloud = np.loadtxt("/media/rosie/KINGSTON/Dataset_2/Stanford3dDataset_v1.2_Aligned_Version/Area_4/conferenceRoom_2/room_data/conferenceRoom_2.txt")
-point_label = np.loadtxt("/media/rosie/KINGSTON/Dataset_2/Stanford3dDataset_v1.2_Aligned_Version/Area_4/conferenceRoom_2/room_data/conferenceRoom_2.label")
+point_cloud = np.loadtxt("/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_2/auditorium_2/room_data/auditorium_2.txt")
+point_label = np.loadtxt("/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_2/auditorium_2/room_data/auditorium_2.label")
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 # -------------------------------------------------------------------
 # model = DeepLabV3_Pretrained(num_classes=14).to(device)
-model = SegFormerPretrained(num_classes=14).to(device)
-model.load_state_dict(torch.load('./log/Dataset1_SP_SegF.pth'))
+model = UNet(num_classes=14).to(device)
+if torch.cuda.device_count() >= 1:
+    print(f"Let's use {torch.cuda.device_count()} GPUs!")
+    model = nn.DataParallel(model)
+    model = model.to(device)
+    model = model.cuda()
+# model = VGGSegmentation(num_classes).to(device)
+# model = UNet(num_classes=num_classes).to(device)
+model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_20241109_175124_.pth'))
 model.eval()
+
 bj = SP_backproj(point_cloud, model, gt_label=point_label)
 
-images = bj.do_range_projection(save_image="/home/rosie/Concordia/research/pred/sp_image", save_label="/home/rosie/Concordia/research/pred/sp_gt.label", proj_fov_up=110, proj_fov_down=-110, proj_W=512,
-                            proj_H=512, label = point_label)
+
+images = bj.do_range_projection(save_image="sp", save_label="sp.label", proj_fov_up=110, proj_fov_down=-110, proj_W=1024,
+                            proj_H=1024, label=point_label)
+
+
+test_files = [f for f in os.listdir('./SP/label/') if f.endswith('.label')]
+test_dataset = SegmentationDataset(image_folder='./SP/image/', mask_folder='./SP/label/',
+                                        file_list=test_files, transform=get_transforms())
+test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=10, drop_last=True)
+images, masks, preds = get_val_batch(test_dataloader, model)
+
 #-----------------------------------------------------------------------------------------------------------------
-# Example usage
-image_array = images  # Load your image array
-preprocessed_image = preprocess_image(image_array)
+# image_mask = cv2.imread("./SP/label/label_image.png", cv2.IMREAD_GRAYSCALE)
+# image_mask = np.loadtxt("/home/xi/repo/research_2/SP/label/Area_1_0_conferenceRoom_1.label")
+image_mask = masks[0].detach().cpu().float().reshape(masks[0].shape)
 
-# Perform segmentation
-with torch.no_grad():
-    # Ensure the input is a PyTorch tensor
-    preprocessed_image = torch.tensor(preprocessed_image, dtype=torch.float32).to(device)
-    output = model(preprocessed_image)
+# Ensure label_image is on CPU and reshape to match image_mask's shape
+label_image = preds[0].detach().cpu().float().reshape(preds[0].shape)
 
-    # Handle model outputs
-    if isinstance(output, dict):
-        logits = output['out']
-    else:
-        logits = output
+compute_2d_acc(label_image, image_mask)
 
-    # Convert logits to class predictions
-    label_image = torch.argmax(logits, dim=1)  # Shape: [batch_size, height, width]
-    image_mask = cv2.imread("pred/label_image.png", cv2.IMREAD_GRAYSCALE)
-    image_mask = torch.tensor(image_mask, dtype=torch.float32).to('cpu')  # Convert to PyTorch tensor
+label_image = postprocess_output(label_image)
 
-    # Ensure label_image is on CPU and reshape to match image_mask's shape
-    label_image = label_image[0].detach().cpu().float().reshape(image_mask.shape)
-    print(label_image.shape)
-    print(image_mask.shape)
-    matrix = compute_2d_acc(label_image, image_mask)
-    print("acc is %f/n", matrix["accuracy"])
-    print("IoU is %f", matrix["IoU"])
-    label_image = postprocess_output(label_image)
-    
-    num_colors = np.max(label_image) + 1
+num_colors = int(np.max(label_image) + 1)
 
-    # Define a colormap with the specified number of colors
-    base_colormap = plt.colormaps.get_cmap('viridis')
-    colormap = base_colormap(np.linspace(0, 1, num_colors))
-    norm = mcolors.Normalize(vmin=np.min(label_image), vmax=np.max(label_image))
-    colorized_image = mcolors.ListedColormap(colormap)(norm(label_image))
-    cv2.imwrite('/home/rosie/Concordia/research/pred/label_image_pred'+'.png', label_image*255)
-    unique_classes = np.unique(label_image)
-    print("Unique classes in label image:", unique_classes)
+# Define a colormap with the specified number of colors
+base_colormap = plt.get_cmap('viridis')
+colormap = base_colormap(np.linspace(0, 1, num_colors))
+norm = mcolors.Normalize(vmin=np.min(label_image), vmax=np.max(label_image))
+colorized_image = mcolors.ListedColormap(colormap)(norm(label_image))
 
-extended_points_with_labels = bj.predict_labels_with_knn(label_image, proj_W=512, proj_H=512, proj_fov_up=110, proj_fov_down = -110)
+if not os.path.exists("./SP/Pred/"):
+    # Create the folder if it doesn't exist
+    os.makedirs("./SP/Pred/")
 
+cv2.imwrite('./SP/Pred/' + './label_image_pred'+'.png', colorized_image*255)
+unique_classes = np.unique(label_image)
+print("Unique classes in label prediction image:", unique_classes)
+
+
+# extended_points_with_labels = bj.predict_labels_with_knn(label_image, proj_W=512, proj_H=512, proj_fov_up=110, proj_fov_down = -110)
+extended_points_with_labels = bj.predict_labels_with_knn(image_mask, proj_W=1024, proj_H=1024, proj_fov_up=110, proj_fov_down = -110)
+get_3d_eval_res(extended_points_with_labels[:, -1], point_label)
 visualize_points_with_colored_labels_open3d(extended_points_with_labels)
