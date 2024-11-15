@@ -8,6 +8,12 @@ from sklearn.model_selection import train_test_split
 import torchvision.models as models
 import torch.nn.functional as F
 
+"""
+This file is used for constructing CNN Arch, test group 1
+-----------------------------------------------------------------------------------------------------
+Date: 2024.11
+
+"""
 class UNet(nn.Module):
     def __init__(self, num_classes=14):
         super(UNet, self).__init__()

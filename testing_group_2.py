@@ -1,6 +1,13 @@
 # from testing_group_1 import *
 
 import torch
+"""
+This file is used for constructing CNN Arch, test group 2
+-----------------------------------------------------------------------------------------------------
+Date: 2024.11
+
+"""
+
 num_classes = 14  # Set this to your specific task
 
 # get DeepLabV3

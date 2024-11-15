@@ -1,7 +1,13 @@
 import os
 import numpy as np
 
+"""
+This file is used for generating complete points/labels for room as one unit. 
+Dataset statistics also included in this file
+-----------------------------------------------------------------------------------------------------
+Date: 2024.11
 
+"""
 #dictionary for calculating the points number in each category
 label_dic = {
         0: "clutter",
