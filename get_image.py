@@ -5,7 +5,7 @@ import matplotlib.colors as mcolors
 import os
 
 from numpy.core.memmap import dtypedescr
-from sympy.physics.units.definitions.dimension_definitions import angle
+# from sympy.physics.units.definitions.dimension_definitions import angle
 
 """
 This file is used for Spherical Projection and Birds Eye View Projection: projecting 3D points to 2D plane
@@ -87,55 +87,19 @@ def do_range_projection(points, proj_fov_up, proj_fov_down, save_image, save_lab
     scan_y = points[:, 1] - y_means
     scan_z = points[:, 2] - z_means
 
-
+    # get depth of all points
+    depth_points = np.zeros(points.shape)
+    depth_points[:, 0] = scan_x - np.mean(scan_x)
+    depth_points[:, 1] = scan_y - np.mean(scan_y)
+    depth_points[:, 2] = scan_z - np.mean(scan_z)
+    depth = np.linalg.norm(depth_points, 2, axis=1)
     # get angles of all points
-    if gen == 1:
-        # get depth of all points
-        depth_points = np.zeros(points.shape)
-        depth_points[:, 0] = scan_x - np.mean(scan_x)
-        depth_points[:, 1] = scan_y - np.mean(scan_y)
-        depth_points[:, 2] = scan_z - np.mean(scan_z)
-        depth = np.linalg.norm(depth_points, 2, axis=1)
-        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0]) + np.pi / 4
-        pitch = np.arcsin(depth_points[:, 2] / depth)
-    elif gen == 0:
-        depth_points = np.zeros(points.shape)
-        depth_points[:, 0] = scan_x - np.mean(scan_x)
-        depth_points[:, 1] = scan_y - np.mean(scan_y)
-        depth_points[:, 2] = scan_z - np.mean(scan_z)
-        depth = np.linalg.norm(depth_points, 2, axis=1)
-        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0]) + np.pi / 2
-        pitch = np.arcsin(depth_points[:, 2] / depth)
-
-    elif gen == 2:
-        depth_points = np.zeros(points.shape)
-        depth_points[:, 0] = scan_x - np.mean(scan_x)
-        depth_points[:, 1] = scan_y - np.mean(scan_y)
-        depth_points[:, 2] = scan_z - np.mean(scan_z)
-        depth = np.linalg.norm(depth_points, 2, axis=1)
-        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0]) - np.pi / 2
-        pitch = np.arcsin(depth_points[:, 2] / depth)
-
-    elif gen == 3:
-        depth_points = np.zeros(points.shape)
-        depth_points[:, 0] = scan_x - np.mean(scan_x)
-        depth_points[:, 1] = scan_y - np.mean(scan_y)
-        depth_points[:, 2] = scan_z - np.mean(scan_z)
-        depth = np.linalg.norm(depth_points, 2, axis=1)
-        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0]) - np.pi / 4
-        pitch = np.arcsin(depth_points[:, 2] / depth)
-
-    elif gen == 4:
-        depth_points = np.zeros(points.shape)
-        depth_points[:, 0] = scan_x - np.mean(scan_x)
-        depth_points[:, 1] = scan_y - np.mean(scan_y)
-        depth_points[:, 2] = scan_z - np.mean(scan_z)
-        depth = np.linalg.norm(depth_points, 2, axis=1)
-        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0])
-        pitch = np.arcsin(depth_points[:, 2] / depth)
+    y_new, x_new = calculate_yaw(depth_points[:, 0], depth_points[:, 1], theta=angle)
+    yaw = -np.arctan2(y_new, x_new)
+    pitch = np.arcsin(depth_points[:, 2] / depth)
 
     # get projections in image coords
-    proj_x = 0.5 * (yaw / np.pi + 1.0)  # in [0.0, 1.0]
+    proj_x = 0.5 * (yaw / np.pi + 1)  # in [0.0, 1.0]
     proj_y = 1.0 - (pitch + abs(fov_down)) / fov  # in [0.0, 1.0]
 
     # scale to image size using angular resolution
@@ -433,43 +397,15 @@ for i in np.arange(len(scan_files)):
     B = scan[:, 5]  # get B
     label = np.loadtxt(label_path, dtype=np.float32)
     if (name == "SP"):
-        gen = 0
-        save_label = "/home/xi/repo/research_3/SP/label/0_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/home/xi/repo/research_3/SP/image/0_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
-                            proj_fov_down=-110, proj_W=512,
-                            proj_H=512, R=R, G=G, B=B)
-        gen = 1
-        save_label = "/home/xi/repo/research_3/SP/label/1_" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/home/xi/repo/research_3/SP/image/1_" + scan_path.split(os.sep)[-4] + '_' + scan_path.split(os.sep)[-3]
-        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110, proj_fov_down=-110, proj_W=512,
-                            proj_H=512, R=R, G=G, B=B)
-        gen = 2
-        save_label = "/home/xi/repo/research_3/SP/label/2_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/home/xi/repo/research_3/SP/image/2_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
-                            proj_fov_down=-110, proj_W=512,
-                            proj_H=512, R=R, G=G, B=B)
-        gen = 3
-        save_label = "/home/xi/repo/research_3/SP/label/3_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/home/xi/repo/research_3/SP/image/3_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
-                            proj_fov_down=-110, proj_W=512,
-                            proj_H=512, R=R, G=G, B=B)
-        gen = 4
-        save_label = "/home/xi/repo/research_3/SP/label/4_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3] + '.label'
-        save_image = "/home/xi/repo/research_3/SP/image/4_" + scan_path.split(os.sep)[-4] + '_' + \
-                     scan_path.split(os.sep)[-3]
-        do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
-                            proj_fov_down=-110, proj_W=512,
-                            proj_H=512, R=R, G=G, B=B)
+        for i in np.arange(18):
+            angle = 10*i
+            save_label = "/home/xi/repo/research_3/SP/label/" + str(i) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                         scan_path.split(os.sep)[-3] + '.label'
+            save_image = "/home/xi/repo/research_3/SP/image/" + str(i) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                         scan_path.split(os.sep)[-3]
+            do_range_projection(save_image=save_image, save_label=save_label, points=points, proj_fov_up=110,
+                                proj_fov_down=-110, proj_W=512,
+                                proj_H=512, R=R, G=G, B=B, label=label, angle=angle)
 
     elif (name == "BEV"):
         hli = (np.max(points[:, 2]) - np.min(points[:, 2])) / 7
