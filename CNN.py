@@ -118,7 +118,7 @@ def get_transforms():
         #     A.RandomBrightnessContrast(),
         #     A.HueSaturationValue()
         # ], p=0.3),
-        A.Resize(height=1024, width=1024, always_apply=True),
+        A.Resize(height=512, width=512, always_apply=True),
         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         A_pytorch.ToTensorV2()  # Ensure correct import and usage
     ], p=1.0)

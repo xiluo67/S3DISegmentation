@@ -269,7 +269,7 @@ transform = A.Compose([
         #     A.RandomBrightnessContrast(),
         #     A.HueSaturationValue()
         # ], p=0.3),
-        A.Resize(height=1024, width=1024, always_apply=True),
+        A.Resize(height=512, width=512, always_apply=True),
         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         A_pytorch.ToTensorV2()  # Ensure correct import and usage
     ], p=1.0)
@@ -495,8 +495,8 @@ model.eval()
 bj = SP_backproj(point_cloud, model, gt_label=point_label)
 
 
-images = bj.do_range_projection(save_image="sp", save_label="sp.label", proj_fov_up=110, proj_fov_down=-110, proj_W=1024,
-                            proj_H=1024, label=point_label)
+images = bj.do_range_projection(save_image="sp", save_label="sp.label", proj_fov_up=110, proj_fov_down=-110, proj_W=512,
+                            proj_H=512, label=point_label)
 
 
 test_files = [f for f in os.listdir('./SP/label/') if f.endswith('.label')]
@@ -535,6 +535,6 @@ print("Unique classes in label prediction image:", unique_classes)
 
 
 # extended_points_with_labels = bj.predict_labels_with_knn(label_image, proj_W=512, proj_H=512, proj_fov_up=110, proj_fov_down = -110)
-extended_points_with_labels = bj.predict_labels_with_knn(image_mask, proj_W=1024, proj_H=1024, proj_fov_up=110, proj_fov_down = -110)
+extended_points_with_labels = bj.predict_labels_with_knn(image_mask, proj_W=512, proj_H=512, proj_fov_up=110, proj_fov_down = -110)
 get_3d_eval_res(extended_points_with_labels[:, -1], point_label)
 visualize_points_with_colored_labels_open3d(extended_points_with_labels)
