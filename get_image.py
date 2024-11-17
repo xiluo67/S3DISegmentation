@@ -37,8 +37,10 @@ def find_txt_files(base_dir):
 
 
 # Define the base directory
-base_dir = '/home/xi/repo/3sdis/Stanford3dDataset_v1.2_Aligned_Version/'
+# base_dir = '/home/xi/repo/3sdis/Stanford3dDataset_v1.2_Aligned_Version/'
 # base_dir = '/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version_Test/'
+base_dir = '/home/xi/repo/new'
+
 
 # Find all .txt files
 scan_files, scan_labels = find_txt_files(base_dir)
@@ -94,39 +96,39 @@ def do_range_projection(points, proj_fov_up, proj_fov_down, save_image, save_lab
         depth_points[:, 1] = scan_y - np.mean(scan_y)
         depth_points[:, 2] = scan_z - np.mean(scan_z)
         depth = np.linalg.norm(depth_points, 2, axis=1)
-        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0])
+        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0]) + np.pi / 4
         pitch = np.arcsin(depth_points[:, 2] / depth)
     elif gen == 0:
         depth_points = np.zeros(points.shape)
-        depth_points[:, 0] = scan_x - (np.max(scan_x) - np.min(scan_x)) * 3 / 4
-        depth_points[:, 1] = scan_y - (np.max(scan_z) - np.min(scan_z)) * 1 / 4
+        depth_points[:, 0] = scan_x - np.mean(scan_x)
+        depth_points[:, 1] = scan_y - np.mean(scan_y)
         depth_points[:, 2] = scan_z - np.mean(scan_z)
         depth = np.linalg.norm(depth_points, 2, axis=1)
-        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0])
+        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0]) + np.pi / 2
         pitch = np.arcsin(depth_points[:, 2] / depth)
 
     elif gen == 2:
         depth_points = np.zeros(points.shape)
-        depth_points[:, 0] = scan_x - (np.max(scan_x) - np.min(scan_x)) * 1 / 4
+        depth_points[:, 0] = scan_x - np.mean(scan_x)
         depth_points[:, 1] = scan_y - np.mean(scan_y)
         depth_points[:, 2] = scan_z - np.mean(scan_z)
         depth = np.linalg.norm(depth_points, 2, axis=1)
-        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0])
+        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0]) - np.pi / 2
         pitch = np.arcsin(depth_points[:, 2] / depth)
 
     elif gen == 3:
         depth_points = np.zeros(points.shape)
-        depth_points[:, 0] = scan_x - (np.mean(scan_x))
-        depth_points[:, 1] = scan_y - (np.max(scan_y) - np.min(scan_y)) * 3 / 4
+        depth_points[:, 0] = scan_x - np.mean(scan_x)
+        depth_points[:, 1] = scan_y - np.mean(scan_y)
         depth_points[:, 2] = scan_z - np.mean(scan_z)
         depth = np.linalg.norm(depth_points, 2, axis=1)
-        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0])
+        yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0]) - np.pi / 4
         pitch = np.arcsin(depth_points[:, 2] / depth)
 
     elif gen == 4:
         depth_points = np.zeros(points.shape)
-        depth_points[:, 0] = scan_x - (np.max(scan_x) - np.min(scan_x)) * 3 / 4
-        depth_points[:, 1] = scan_y - (np.max(scan_y) - np.min(scan_y)) * 3 / 4
+        depth_points[:, 0] = scan_x - np.mean(scan_x)
+        depth_points[:, 1] = scan_y - np.mean(scan_y)
         depth_points[:, 2] = scan_z - np.mean(scan_z)
         depth = np.linalg.norm(depth_points, 2, axis=1)
         yaw = -np.arctan2(depth_points[:, 1], depth_points[:, 0])
