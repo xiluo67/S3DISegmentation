@@ -1,30 +1,34 @@
 from CNN import *
 # Split the dataset
-image_folder = '/home/xi/repo/research_2/SP/image/'
-mask_folder = '/home/xi/repo/research_2/SP/label/'
+image_folder = '/home/xi/repo/conference/PP_Dataset1/image/'
+mask_folder = '/home/xi/repo/conference/PP_Dataset1/label/'
 
 train_files, val_files = split_dataset(image_folder, mask_folder)
-test_files = [f for f in os.listdir('/home/xi/repo/research_2/PP/label_t/') if f.endswith('.label')]
+test_files = [f for f in os.listdir('/home/xi/repo/conference/PP_Dataset1/label_test/') if f.endswith('.label')]
 print(len(test_files))
 
 # Create datasets
 train_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=train_files, transform=get_transforms())
 val_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=val_files, transform=get_transforms())
-test_dataset = SegmentationDataset(image_folder='/home/xi/repo/research_2/PP/image_t/', mask_folder='/home/xi/repo/research_2/PP/label_t/',
+test_dataset = SegmentationDataset(image_folder='/home/xi/repo/conference/PP_Dataset1/image_test/', mask_folder='/home/xi/repo/conference/PP_Dataset1/label_test/',
                                         file_list=test_files, transform=get_transforms())
 
 # Create DataLoaders
-train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=20, shuffle=True, num_workers=10, drop_last=True)
-val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=20, shuffle=False, num_workers=10, drop_last=True)
-test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=20, shuffle=False, num_workers=10, drop_last=True)
+train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=10, shuffle=True, num_workers=10, drop_last=True)
+val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=10, shuffle=False, num_workers=10, drop_last=True)
+test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=5, shuffle=False, num_workers=10, drop_last=True)
 sample = train_dataset[0]
 
+import gc
+torch.cuda.empty_cache()
+gc.collect()
 
 num_classes = 14  # Example number of classes
-train = 0
+train = 1
 if train:
     # model = VGGSegmentation(num_classes=num_classes).to(device)
-    model = UNet(num_classes=num_classes).to(device)
+    # model = UNet(num_classes=num_classes).to(device)
+    model = get_pretrianed_unet().to(device)
     # model = DPT.to(device)
     # model = SegFormerPretrained(num_classes=num_classes)
     # model = DeepLabV3
@@ -57,7 +61,8 @@ if train:
     print(f"Model saved to {model_path}")
 
 else:
-    model = UNet(num_classes=num_classes).to(device)
+    # model = UNet(num_classes=num_classes).to(device)
+    model = get_pretrianed_unet().to(device)
     # model = Segformer.to(device)
     # model = SegFormerPretrained(num_classes=num_classes)
     # model = DeepLabV3.to(device)
@@ -69,7 +74,7 @@ else:
         model = model.cuda()
     # model = VGGSegmentation(num_classes).to(device)
     # model = UNet(num_classes=num_classes).to(device)
-    model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_20241109_175124_.pth'))
+    model.load_state_dict(torch.load('./log/model_20241203_155248_.pth'))
     model.eval()
 
     # To store results
@@ -80,7 +85,7 @@ else:
     recall_scores = []
 
     # Iterate through the dataloader
-    for batch_index, batch in enumerate(val_dataloader):
+    for batch_index, batch in enumerate(test_dataloader):
         images = batch['image'].to(device)
         masks = batch['mask'].to(device)  # Shape: [batch_size, height, width]
 
