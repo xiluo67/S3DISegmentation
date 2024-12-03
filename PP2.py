@@ -133,6 +133,20 @@ param_dict = {
     'lobby': [1.2, 2, 1],
     'default': [1.5, 4, 3]
 }
+param_dict = {
+    'auditorium': [2.2, 2, 1],
+    'office': [1.5, 6, 1],
+    'hallway': [1.2, 2, 1],
+    'conferenceRoom': [1.8, 10, 1],
+    'WC': [1.5, 6, 1],
+    'pantry': [1.5, 6, 1],
+    'storage': [1.2, 4, 1],
+    'lounge': [1.5, 6, 1],
+    'copyRoom': [1.5, 6, 1],
+    'openspace': [1.5, 6, 1],
+    'lobby': [1.2, 2, 1],
+    'default': [1.5, 4, 1]
+}
 from scipy.ndimage import measurements
 # why = np.loadtxt("/home/xi/repo/3sdis/Stanford3dDataset_v1.2_Aligned_Version/Area_2/auditorium_1/room_data/auditorium_1.txt")
 # Function to fill voids with nearest neighbor interpolation
@@ -176,7 +190,7 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
         Y = np.max(temp[:, 2]) - np.min(temp[:, 2])
         Z = np.max(temp[:, 0]) - np.min(temp[:, 0])
         camera_position = np.array(
-            [np.min(temp[:, 1]) + X * widths * 1 / (val+1), np.min(temp[:, 2]) + Y * heights / 4, np.min(temp[:, 0]) + Z * longitudes / 4])
+            [np.min(temp[:, 1]) + X * widths * 1 / (val+1), np.min(temp[:, 2]) + Y * heights / 2, np.min(temp[:, 0]) + Z * longitudes / 4])
         target = camera_position + (-0.1, 0, 0)
         reverse = True
     elif (target_type == "right"):
@@ -188,7 +202,7 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
         Z = np.max(temp[:, 0]) - np.min(temp[:, 0])
 
         camera_position = np.array(
-            [np.min(temp[:, 1]) + X * widths / (val+1), np.min(temp[:, 2]) + Y * heights / 4, np.min(temp[:, 0]) + Z * longitudes / 4])
+            [np.min(temp[:, 1]) + X * widths / (val+1), np.min(temp[:, 2]) + Y * heights / 2, np.min(temp[:, 0]) + Z * longitudes / 4])
         target = camera_position + (0.1, 0, 0)
         reverse = True
     elif (target_type == "forward"):
@@ -200,7 +214,7 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
         Z = np.max(temp[:, 0]) - np.min(temp[:, 0])
 
         camera_position = np.array(
-            [np.min(temp[:, 1]) + X * widths / (val+1), np.min(temp[:, 2]) + Y * heights / 4, np.min(temp[:, 0]) + Z * longitudes / 4])
+            [np.min(temp[:, 1]) + X * widths / (val+1), np.min(temp[:, 2]) + Y * heights / 2, np.min(temp[:, 0]) + Z * longitudes / 4])
         target = camera_position + (0, 0, 0.1)
         reverse = False
     elif (target_type == "back"):
@@ -212,7 +226,7 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
         Z = np.max(temp[:, 0]) - np.min(temp[:, 0])
 
         camera_position = np.array(
-            [np.min(temp[:, 1]) + X * widths / (val+1), np.min(temp[:, 2]) + Y * heights / 4, np.min(temp[:, 0]) + Z * longitudes / 4])
+            [np.min(temp[:, 1]) + X * widths / (val+1), np.min(temp[:, 2]) + Y * heights / 2, np.min(temp[:, 0]) + Z * longitudes / 4])
         target = camera_position + (0, 0, -0.1)
         reverse = False
 
@@ -268,7 +282,7 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
     if (len(np.unique(proj_l)) >= 0):
         # print(np.unique(proj_l))
         np.savetxt(save_label, proj_l)
-        cv2.imwrite(save_image+'.jpg', fill_voids(image_rgb))
+        cv2.imwrite(save_image+'.jpg', image_rgb)
 
 def gen_the_pp_image(scan, label, scan_path):
     k = [key for key in param_dict if key in scan_path.split(os.sep)[-3]]
@@ -279,42 +293,43 @@ def gen_the_pp_image(scan, label, scan_path):
     fov = np.pi / param_dict[k][0]
     for f in np.arange(3):
         number = f * (param_dict[k][1]) - param_dict[k][1]
+    # number = 0
         dataset = scan
-        for h in np.arange(3):
+        for h in np.arange(1):
             for w in np.arange(param_dict[k][2]):
                 for l in np.arange(3):
-                    save_label_path = "/home/xi/repo/research_2/PP/label_f/left_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                    save_label_path = "/home/xi/repo/conference/PP_Dataset2/label/left_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                       scan_path.split(os.sep)[-3] + '.label'
-                    save_image_path = "/home/xi/repo/research_2/PP/image_f/left_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                    save_image_path = "/home/xi/repo/conference/PP_Dataset2/image/left_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                              scan_path.split(os.sep)[-3]
                     do_perspective_projection(points_3d=scan, label=label, target_type="left", save_image=save_image_path,
                                           save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number, val=param_dict[k][2])
-
-                    save_label_path = "/home/xi/repo/research_2/PP/label_f/right_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+    
+                    save_label_path = "/home/xi/repo/conference/PP_Dataset2/label/right_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                  scan_path.split(os.sep)[-3] + '.label'
-                    save_image_path = "/home/xi/repo/research_2/PP/image_f/right_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                    save_image_path = "/home/xi/repo/conference/PP_Dataset2/image/right_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                  scan_path.split(os.sep)[-3]
                     do_perspective_projection(points_3d=scan, label=label, target_type="right", save_image=save_image_path,
                                               save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number, val=param_dict[k][2])
-
-                    save_label_path = "/home/xi/repo/research_2/PP/label_f/forward_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+    
+                    save_label_path = "/home/xi/repo/conference/PP_Dataset2/label/forward_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                  scan_path.split(os.sep)[-3] + '.label'
-                    save_image_path = "/home/xi/repo/research_2/PP/image_f/forward_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                    save_image_path = "/home/xi/repo/conference/PP_Dataset2/image/forward_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                  scan_path.split(os.sep)[-3]
                     do_perspective_projection(points_3d=scan, label=label, target_type="forward", save_image=save_image_path,
                                               save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number, val=param_dict[k][2])
                     #
-                    save_label_path = "/home/xi/repo/research_2/PP/label_f/back_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                    save_label_path = "/home/xi/repo/conference/PP_Dataset2/label/back_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                  scan_path.split(os.sep)[-3] + '.label'
-                    save_image_path = "/home/xi/repo/research_2/PP/image_f/back_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                    save_image_path = "/home/xi/repo/conference/PP_Dataset2/image/back_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                  scan_path.split(os.sep)[-3]
                     do_perspective_projection(points_3d=dataset, label=label, target_type="back", save_image=save_image_path,
                                               save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number, val=param_dict[k][2])
 
 # base_dir = '/home/xi/repo/3sdis/Stanford3dDataset_v1.2_Aligned_Version/Area_2'
-# base_dir = '/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version_Test/'
-# base_dir = '/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version_Test'
-base_dir = '/home/xi/repo/new/'
+base_dir = '/home/xi/repo/3sdis/Stanford3dDataset_v1.2_Aligned_Version/'
+# base_dir = '/home/xi/repo/3sdis/Stanford3dDataset_v1.2_Aligned_Version_Test/'
+# base_dir = '/home/xi/repo/new/'
 def find_txt_files(base_dir):
     # List to store paths to all .txt files
     txt_files = []
@@ -336,7 +351,7 @@ def find_txt_files(base_dir):
     return txt_files, label_files
 
 scan_files, scan_labels = find_txt_files(base_dir)
-
+print(len(scan_files))
 # Print all .txt file paths
 for txt_file in scan_files:
     print(txt_file)
