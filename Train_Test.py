@@ -39,7 +39,7 @@ if train:
         model = model.cuda()
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1.2e-4)
+    optimizer = optim.Adam(model.parameters(), lr=8e-5)
 
     model = train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=200, patience=5)
     plt.close()
