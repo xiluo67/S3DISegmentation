@@ -24,12 +24,12 @@ class add_gaussian_noise:
 import random
 
 # Define paths
-# image_folder = '/home/xi/repo/conference/PP_Dataset2/image/'
-# mask_folder = '/home/xi/repo/conference/PP_Dataset2/label/'
-image_folder = '/home/xi/repo/conference/PP/image/'
-mask_folder = '/home/xi/repo/conference/PP/label/'
-augmented_image_folder = '/home/xi/repo/conference/PP_Dataset3/image/'
-augmented_mask_folder = '/home/xi/repo/conference/PP_Dataset3/label/'
+image_folder = '/home/xi/repo/conference/PP_Dataset1/image_test/'
+mask_folder = '/home/xi/repo/conference/PP_Dataset1/label_test/'
+# image_folder = '/home/xi/repo/conference/PP/image/'
+# mask_folder = '/home/xi/repo/conference/PP/label/'
+augmented_image_folder = '/home/xi/repo/conference/PP_Dataset3/image_test/'
+augmented_mask_folder = '/home/xi/repo/conference/PP_Dataset3/label_test/'
 
 # Ensure output directories exist
 os.makedirs(augmented_image_folder, exist_ok=True)
@@ -40,9 +40,10 @@ mask_files = sorted(os.listdir(mask_folder))
 
 # Sanity check: Ensure same number of images and masks
 assert len(image_files) == len(mask_files), "Mismatch in number of images and masks"
+print(len(image_files))
 
 # Number of augmentations per image
-num_augmentations = 10  # To generate 10x dataset
+num_augmentations = 12  # To generate 10x dataset
 
 transform = transforms.Compose([
     transforms.RandomHorizontalFlip(p=0.5),
@@ -59,7 +60,6 @@ generated_hashes = set()
 for idx, (image_file, mask_file) in enumerate(zip(image_files, mask_files)):
     image_path = os.path.join(image_folder, image_file)
     mask_path = os.path.join(mask_folder, mask_file)
-    print(image_path)
 
     image = Image.open(image_path).convert("RGB")
     mask = np.loadtxt(mask_path)
@@ -85,4 +85,4 @@ for idx, (image_file, mask_file) in enumerate(zip(image_files, mask_files)):
         augmented_image.save(os.path.join(augmented_image_folder, f'{idx}_{aug_idx}.png'))
         np.savetxt(os.path.join(augmented_mask_folder, f'{idx}_{aug_idx}.label'), augmented_mask)
 
-    print(f"Augmented dataset saved to {augmented_image_folder} and {augmented_mask_folder}.")
+    # print(f"Augmented dataset saved to {augmented_image_folder} and {augmented_mask_folder}.")
