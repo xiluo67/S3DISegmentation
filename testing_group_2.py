@@ -24,56 +24,16 @@ seg_config = SegformerConfig.from_pretrained("nvidia/segformer-b0-finetuned-ade-
 # Modify the config to change input size and remove pre-trained weights
 seg_config.image_size = [256, 256]  # Set input image size to 256x256
 seg_config.num_labels = num_classes  # Set number of segmentation classes
+# config = SegformerConfig(num_labels=14, image_size=[512, 512])
+config = SegformerConfig(
+    num_labels=14,                       # Number of classes
+    hidden_sizes=[32, 64, 160, 256],     # Encoder hidden sizes
+    depths=[2, 2, 2, 2],                 # Number of transformer layers per block
+    attention_heads=[1, 2, 5, 8],        # Number of attention heads per block
+    image_size=512,                      # Input image size
+)
+Segformer = SegformerForSemanticSegmentation(config)
 
-# Initialize SegFormer model with modified configuration (no pre-trained weights)
-Segformer = SegformerForSemanticSegmentation(seg_config)
-Segformer.init_weights()  # Uncomment if you want to initialize randomly
-
-# class SegformerModel:
-#     def __init__(self, num_classes, image_size=(256, 256), model_name="nvidia/segformer-b0-finetuned-ade-512-512",
-#                  device='cuda'):
-#         """
-#         Initializes the Segformer model with a custom configuration (from scratch).
-#
-#         Args:
-#             num_classes (int): The number of segmentation classes.
-#             image_size (tuple): The input image size. Default is (256, 256).
-#             model_name (str): The model to load from Hugging Face. Default is "nvidia/segformer-b0-finetuned-ade-512-512".
-#             device (str): The device to run the model on (e.g., 'cuda' or 'cpu').
-#         """
-#         self.device = device
-#
-#         # Load configuration without using pretrained weights
-#         self.config = SegformerConfig.from_pretrained(model_name)
-#
-#         # Modify the configuration for input size and number of classes
-#         self.config.image_size = list(image_size)
-#         self.config.num_labels = num_classes
-#         self.config.ignore_mismatched_sizes = True
-#
-#         # Initialize the SegFormer model with the custom configuration
-#         self.model = SegformerForSemanticSegmentation(config=self.config).to(self.device)
-#
-#         # Ensure the model is trained from scratch by randomly initializing weights
-#         self.model.init_weights()  # This ensures the model starts from scratch
-#
-#     def forward(self, images):
-#         """
-#         Perform a forward pass with the Segformer model.
-#
-#         Args:
-#             images (torch.Tensor): A batch of input images.
-#
-#         Returns:
-#             torch.Tensor: The model's output.
-#         """
-#         outputs = self.model(x)
-#         logits = outputs['logits']
-#
-#         # Resize logits to match target size if necessary
-#         logits_resized = F.interpolate(logits, size=(256, 256), mode='bilinear', align_corners=False)
-#
-#         return logits_resized
 
 #Get DPT
 torch.backends.cudnn.benchmark = True

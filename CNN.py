@@ -55,11 +55,11 @@ def visualize_predictions(images, masks, preds, idx):
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def split_dataset(image_folder, mask_folder, train_ratio=0.8, val_ratio=0.2, test_ratio=0.01):
-    image_files = [f for f in os.listdir(image_folder) if f.endswith('.png')]
+    image_files = [f for f in os.listdir(image_folder) if f.endswith('.jpg')]
 
     # Make sure corresponding mask files exist
-    mask_files = [f.replace('.png', '.label') for f in image_files if
-                  os.path.exists(os.path.join(mask_folder, f.replace('.png', '.label')))]
+    mask_files = [f.replace('.jpg', '.label') for f in image_files if
+                  os.path.exists(os.path.join(mask_folder, f.replace('.jpg', '.label')))]
 
     # Split dataset into training+validation and test sets
     # train_val_files, test_files = train_test_split(mask_files, test_size=test_ratio, random_state=42)
@@ -83,7 +83,7 @@ class SegmentationDataset(Dataset):
 
     def __getitem__(self, idx):
         mask_file = self.file_list[idx]
-        image_file = mask_file.replace('.label', '.png')
+        image_file = mask_file.replace('.label', '.jpg')
 
         image_path = os.path.join(self.image_folder, image_file)
         mask_path = os.path.join(self.mask_folder, mask_file)
@@ -287,8 +287,9 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
             # print(outputs.shape)
             # print(masks.shape)
             if isinstance(outputs, dict):
-                outputs = outputs['out']
-                # outputs = F.interpolate(outputs, size=(512, 512), mode='bilinear', align_corners=False)
+                # outputs = outputs['out']
+                outputs = outputs['logits']
+                outputs = F.interpolate(outputs, size=(512, 512), mode='bilinear', align_corners=False)
             loss = criterion(outputs, masks.long())
             loss.backward()
             optimizer.step()
@@ -324,7 +325,8 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
                 outputs = model(images)
 
                 if isinstance(outputs, dict):
-                    outputs = outputs['out']
+                    # outputs = outputs['out']
+                    outputs = outputs['logits']
                     outputs = F.interpolate(outputs, size=(512, 512), mode='bilinear', align_corners=False)
                 loss = criterion(outputs, masks.long())
                 val_loss += loss.item() * images.size(0)
@@ -396,7 +398,8 @@ def get_val_batch(dataloader, model):
             preds = model(images)
 
             if isinstance(preds, dict):
-                preds = preds['out']
+                # preds = preds['out']
+                preds = preds['logits']
                 preds = F.interpolate(preds, size=(512, 512), mode='bilinear', align_corners=False)
         preds = torch.argmax(preds, dim=1)  # Assuming the output is logits
         return images, masks, preds
