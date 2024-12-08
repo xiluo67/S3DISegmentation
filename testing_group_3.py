@@ -91,7 +91,8 @@ class CustomDPTModel(nn.Module):
 
 
 #Get Segformer
-from transformers import SegformerForSemanticSegmentation
+from transformers import SegformerForSemanticSegmentation, SegformerConfig
+
 class SegFormerPretrained(nn.Module):
     def __init__(self, num_classes=14):
         super(SegFormerPretrained, self).__init__()

@@ -24,10 +24,19 @@ seg_config = SegformerConfig.from_pretrained("nvidia/segformer-b0-finetuned-ade-
 # Modify the config to change input size and remove pre-trained weights
 seg_config.image_size = [256, 256]  # Set input image size to 256x256
 seg_config.num_labels = num_classes  # Set number of segmentation classes
+# config = SegformerConfig(num_labels=14, image_size=[512, 512])
+config = SegformerConfig(
+    num_labels=14,                       # Number of classes
+    hidden_sizes=[32, 64, 160, 256],     # Encoder hidden sizes
+    depths=[2, 2, 2, 2],                 # Number of transformer layers per block
+    attention_heads=[1, 2, 5, 8],        # Number of attention heads per block
+    image_size=512,                      # Input image size
+)
+Segformer = SegformerForSemanticSegmentation(config)
 
 # Initialize SegFormer model with modified configuration (no pre-trained weights)
-Segformer = SegformerForSemanticSegmentation(seg_config)
-Segformer.init_weights()  # Uncomment if you want to initialize randomly
+# Segformer = SegformerForSemanticSegmentation(seg_config)
+# Segformer.init_weights()  # Uncomment if you want to initialize randomly
 
 # class SegformerModel:
 #     def __init__(self, num_classes, image_size=(256, 256), model_name="nvidia/segformer-b0-finetuned-ade-512-512",
