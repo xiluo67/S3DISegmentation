@@ -32,24 +32,6 @@ class DeepLabV3_Pretrained(nn.Module):
         outputs = self.model(x)
         return outputs
 
-# class DeepLabV3_Pretrained(nn.Module):
-#     def __init__(self, num_classes=14, pretrained=True):
-#         super(DeepLabV3_Pretrained, self).__init__()
-#         # Load DeepLabV3 pretrained model
-#         self.model = models.segmentation.deeplabv3_resnet101(pretrained=pretrained)
-#         # self.model = models.segmentation.deeplabv3_resnet101(pretrained=1, num_classes=num_classes)
-#         # Change the classifier to match the number of classes (14)
-#         self.model.classifier[4] = nn.Conv2d(256, num_classes, kernel_size=(1, 1))
-#
-#         for param in self.model.parameters():
-#             param.requires_grad = False  # Freeze all layers
-#         for param in self.model.classifier[-1].parameters():
-#             param.requires_grad = True  # Unfreeze last Conv2d layer
-#         for param in self.model.classifier[-2].parameters():
-#             param.requires_grad = True  # Unfreeze the BatchNorm2d layer before Conv2d
-#
-#     def forward(self, x):
-#         return self.model(x)['out']
 
 #Get DPT
 from transformers import AutoModel, AutoTokenizer

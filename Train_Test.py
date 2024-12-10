@@ -24,15 +24,12 @@ torch.cuda.empty_cache()
 gc.collect()
 
 num_classes = 14  # Example number of classes
-train = 1
+train = 0
 if train:
-    # model = VGGSegmentation(num_classes=num_classes).to(device)
     # model = UNet(num_classes=num_classes).to(device)
     # model = get_pretrianed_unet().to(device)
-    # model = Segformer.to(device)
-    model = SegFormerPretrained(num_classes=num_classes)
-    # model = DeepLabV3
-    # model = DeepLabV3_Pretrained(num_classes=num_classes).to(device)
+    model = Segformer.to(device)
+    # model = SegFormerPretrained(num_classes=num_classes)
     if torch.cuda.device_count() >= 1:
         print(f"Let's use {torch.cuda.device_count()} GPUs!")
         model = nn.DataParallel(model)
@@ -65,16 +62,12 @@ else:
     # model = get_pretrianed_unet().to(device)
     # model = Segformer.to(device)
     model = SegFormerPretrained(num_classes=num_classes)
-    # model = DeepLabV3.to(device)
-    # model = SegFormerPretrained(num_classes=num_classes)
     if torch.cuda.device_count() >= 1:
         print(f"Let's use {torch.cuda.device_count()} GPUs!")
         model = nn.DataParallel(model)
         model = model.to(device)
         model = model.cuda()
-    # model = VGGSegmentation(num_classes).to(device)
-    # model = UNet(num_classes=num_classes).to(device)
-    model.load_state_dict(torch.load('./log/model_20241208_224425_.pth'))
+    model.load_state_dict(torch.load('./log/model_Seg_TL_PP1_LR1.2-4.pth'))
     model.eval()
 
     # To store results
@@ -139,7 +132,7 @@ else:
             iou_scores_cls[str(cls)].append(iou_cls)
 
         # Overall Accuracy
-        iou = tp / (masks != 0).sum()
+        iou = tp / ((preds != 0).sum() + (masks != 0).sum() - tp + 1e-8)
         # iou = tp / (masks.numel() + 1e-8)
         accuracy = (preds == masks).sum().item() / (masks.numel() + 1e-8)
 
