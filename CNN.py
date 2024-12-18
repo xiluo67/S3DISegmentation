@@ -55,11 +55,11 @@ def visualize_predictions(images, masks, preds, idx):
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def split_dataset(image_folder, mask_folder, train_ratio=0.8, val_ratio=0.2, test_ratio=0.01):
-    image_files = [f for f in os.listdir(image_folder) if f.endswith('.jpg')]
+    image_files = [f for f in os.listdir(image_folder) if f.endswith('.png')]
 
     # Make sure corresponding mask files exist
-    mask_files = [f.replace('.jpg', '.label') for f in image_files if
-                  os.path.exists(os.path.join(mask_folder, f.replace('.jpg', '.label')))]
+    mask_files = [f.replace('.png', '.label') for f in image_files if
+                  os.path.exists(os.path.join(mask_folder, f.replace('.png', '.label')))]
 
     # Split dataset into training+validation and test sets
     # train_val_files, test_files = train_test_split(mask_files, test_size=test_ratio, random_state=42)
@@ -83,7 +83,7 @@ class SegmentationDataset(Dataset):
 
     def __getitem__(self, idx):
         mask_file = self.file_list[idx]
-        image_file = mask_file.replace('.label', '.jpg')
+        image_file = mask_file.replace('.label', '.png')
 
         image_path = os.path.join(self.image_folder, image_file)
         mask_path = os.path.join(self.mask_folder, mask_file)
@@ -120,8 +120,8 @@ def get_transforms():
         # ], p=0.3),
         A.Resize(height=512, width=512, always_apply=True),
         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        A_pytorch.ToTensorV2()  # Ensure correct import and usage
-    ], p=1.0)
+        A_pytorch.ToTensorV2(),  # Ensure correct import and usage
+    ], p=1.0, is_check_shapes=False)
 
 
 class EarlyStopping:
@@ -263,8 +263,8 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
     train_accuracies = []
     val_accuracies = []
     # Initialize interactive mode for non-blocking plots
-    plt.ion()
-    fig, ax = plt.subplots(2, 1, figsize=(10, 10))
+    # plt.ion()
+    # fig, ax = plt.subplots(2, 1, figsize=(10, 10))
 
     for epoch in range(num_epochs):
         model.train()
@@ -344,32 +344,33 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, n
         print(f'Validation Loss: {val_loss:.4f} Accuracy: {val_accuracy:.2f}%')
 
         # Update the plots
-        ax[0].clear()
-        ax[0].plot(range(epoch + 1), train_losses, label='Train Loss')
-        ax[0].plot(range(epoch + 1), val_losses, label='Validation Loss')
-        ax[0].set_xlabel('Epoch')
-        ax[0].set_ylabel('Loss')
-        ax[0].legend()
-        ax[0].set_title('Training and Validation Loss')
+        # ax[0].clear()
+        # ax[0].plot(range(epoch + 1), train_losses, label='Train Loss')
+        # ax[0].plot(range(epoch + 1), val_losses, label='Validation Loss')
+        # ax[0].set_xlabel('Epoch')
+        # ax[0].set_ylabel('Loss')
+        # ax[0].legend()
+        # ax[0].set_title('Training and Validation Loss')
+        #
+        # ax[1].clear()
+        # ax[1].plot(range(epoch + 1), train_accuracies, label='Train Accuracy')
+        # ax[1].plot(range(epoch + 1), val_accuracies, label='Validation Accuracy')
+        # ax[1].set_xlabel('Epoch')
+        # ax[1].set_ylabel('Accuracy (%)')
+        # ax[1].legend()
+        # ax[1].set_title('Training and Validation Accuracy')
 
-        ax[1].clear()
-        ax[1].plot(range(epoch + 1), train_accuracies, label='Train Accuracy')
-        ax[1].plot(range(epoch + 1), val_accuracies, label='Validation Accuracy')
-        ax[1].set_xlabel('Epoch')
-        ax[1].set_ylabel('Accuracy (%)')
-        ax[1].legend()
-        ax[1].set_title('Training and Validation Accuracy')
-
-        plt.draw()
-        plt.pause(0.1)  # Pause to allow plot to update
+        # plt.draw()
+        # plt.pause(0.1)  # Pause to allow plot to update
 
         # Check early stopping
         early_stopping(val_loss)
         if early_stopping.early_stop:
             print("Early stopping")
             break
-    plt.ioff()  # Turn off interactive mode
-    plt.show()  # Show the final plot
+    # plt.ioff()  # Turn off interactive mode
+    # plt.show()  # Show the final plot
+    # plt.close()
     return model
 
 def tensor_to_numpy(tensor):

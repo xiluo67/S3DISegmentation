@@ -46,8 +46,8 @@ print(len(image_files))
 num_augmentations = 12  # To generate 10x dataset
 
 transform = transforms.Compose([
-    transforms.RandomHorizontalFlip(p=0.5),
-    transforms.RandomVerticalFlip(p=0.5),
+    # transforms.RandomHorizontalFlip(p=0.5),
+    # transforms.RandomVerticalFlip(p=0.5),
     transforms.ColorJitter(brightness=(0.3, 1.0)),
     transforms.ToTensor(),
     add_gaussian_noise(mean=0, std=0.0001),
@@ -63,17 +63,18 @@ for idx, (image_file, mask_file) in enumerate(zip(image_files, mask_files)):
 
     image = Image.open(image_path).convert("RGB")
     mask = np.loadtxt(mask_path)
-    mask_pil = Image.fromarray(mask.astype(np.uint8))  # Convert NumPy array to PIL image for transformations
+    # mask_pil = Image.fromarray(mask.astype(np.uint8))  # Convert NumPy array to PIL image for transformations
 
     for aug_idx in range(num_augmentations):
         seed = random.randint(0, 2**32)
         random.seed(seed)
         augmented_image = transform(image)
         random.seed(seed)
-        augmented_mask_pil = transform(mask_pil)
+        # augmented_mask_pil = transform(mask_pil)
 
         # Convert augmented mask back to NumPy array
-        augmented_mask = np.array(augmented_mask_pil)
+        # augmented_mask = np.array(augmented_mask_pil)
+        augmented_mask = mask
 
         # Check for duplicates
         img_hash = get_image_hash(augmented_image)

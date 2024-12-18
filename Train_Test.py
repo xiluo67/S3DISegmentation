@@ -1,22 +1,22 @@
 from CNN import *
 # Split the dataset
-image_folder = '/home/xi/repo/conference/PP_Dataset1/image/'
-mask_folder = '/home/xi/repo/conference/PP_Dataset1/label/'
+image_folder = '/home/xi/repo/conference/PP_Dataset3/image/'
+mask_folder = '/home/xi/repo/conference/PP_Dataset3/label/'
 
 train_files, val_files = split_dataset(image_folder, mask_folder)
-test_files = [f for f in os.listdir('/home/xi/repo/conference/PP_Dataset1/label_test/') if f.endswith('.label')]
+test_files = [f for f in os.listdir('/home/xi/repo/conference/PP_Dataset3/label_test/') if f.endswith('.label')]
 print(len(test_files))
 
 # Create datasets
 train_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=train_files, transform=get_transforms())
 val_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=val_files, transform=get_transforms())
-test_dataset = SegmentationDataset(image_folder='/home/xi/repo/conference/PP_Dataset1/image_test/', mask_folder='/home/xi/repo/conference/PP_Dataset1/label_test/',
+test_dataset = SegmentationDataset(image_folder='/home/xi/repo/conference/PP_Dataset3/image_test/', mask_folder='/home/xi/repo/conference/PP_Dataset3/label_test/',
                                         file_list=test_files, transform=get_transforms())
 
 # Create DataLoaders
-train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=5, shuffle=True, num_workers=10, drop_last=True)
+train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=20, shuffle=True, num_workers=10, drop_last=True)
 val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=10, shuffle=False, num_workers=10, drop_last=True)
-test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=5, shuffle=False, num_workers=10, drop_last=True)
+test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=20, shuffle=False, num_workers=10, drop_last=True)
 sample = train_dataset[0]
 
 import gc
@@ -24,11 +24,11 @@ torch.cuda.empty_cache()
 gc.collect()
 
 num_classes = 14  # Example number of classes
-train = 0
+train = 1
 if train:
     # model = UNet(num_classes=num_classes).to(device)
-    # model = get_pretrianed_unet().to(device)
-    model = Segformer.to(device)
+    model = get_pretrianed_unet().to(device)
+    # model = Segformer.to(device)
     # model = SegFormerPretrained(num_classes=num_classes)
     if torch.cuda.device_count() >= 1:
         print(f"Let's use {torch.cuda.device_count()} GPUs!")
@@ -39,7 +39,6 @@ if train:
     optimizer = optim.Adam(model.parameters(), lr=1.2e-4)
 
     model = train_model(model, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=200, patience=5)
-    plt.close()
     # Ensure the log directory exists
     log_dir = "./log"
     if not os.path.exists(log_dir):
@@ -48,26 +47,40 @@ if train:
     # Generate the timestamp
     from datetime import datetime
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Save the model with timestamp in the filename
-    model_filename = f"model_{timestamp}_" + ".pth"
-    model_path = os.path.join(log_dir, model_filename)
+    # model_filename = f"model_{timestamp}_" + ".pth"
+    # model_path = os.path.join(log_dir, model_filename)
+    model_path = os.path.join(log_dir, "model_UNET_PP3_TL_LR1.2-04.pth")
     torch.save(model.state_dict(), model_path)
 
     print(f"Model saved to {model_path}")
+#     ------------------------------------------------------------------
+#     model2 = Segformer.to(device)
+#     if torch.cuda.device_count() >= 1:
+#         print(f"Let's use {torch.cuda.device_count()} GPUs!")
+#         model2 = nn.DataParallel(model2)
+#         model2 = model2.cuda()
+#
+#
+#     model2 = train_model(model2, train_dataloader, val_dataloader, criterion, optimizer, num_epochs=200, patience=5)
+#     model2_path = os.path.join(log_dir, "model_Seg_PP3_LR1.2-04.pth")
+#     torch.save(model2.state_dict(), model2_path)
+#
+#     print(f"Model saved to {model2_path}")
 
 else:
     # model = UNet(num_classes=num_classes).to(device)
     # model = get_pretrianed_unet().to(device)
-    # model = Segformer.to(device)
-    model = SegFormerPretrained(num_classes=num_classes)
+    model = Segformer.to(device)
+    # model = SegFormerPretrained(num_classes=num_classes)
     if torch.cuda.device_count() >= 1:
         print(f"Let's use {torch.cuda.device_count()} GPUs!")
         model = nn.DataParallel(model)
         model = model.to(device)
         model = model.cuda()
-    model.load_state_dict(torch.load('./log/model_Seg_TL_PP1_LR1.2-4.pth'))
+    model.load_state_dict(torch.load('./log/model_Seg_PP3_LR1.2-04.pth'))
     model.eval()
 
     # To store results
