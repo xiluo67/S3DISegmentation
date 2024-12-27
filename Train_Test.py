@@ -24,7 +24,7 @@ torch.cuda.empty_cache()
 gc.collect()
 
 num_classes = 14  # Example number of classes
-train = 1
+train = 0
 if train:
     # model = UNet(num_classes=num_classes).to(device)
     model = get_pretrianed_unet().to(device)
@@ -72,15 +72,15 @@ if train:
 
 else:
     # model = UNet(num_classes=num_classes).to(device)
-    # model = get_pretrianed_unet().to(device)
-    model = Segformer.to(device)
+    model = get_pretrianed_unet().to(device)
+    # model = Segformer.to(device)
     # model = SegFormerPretrained(num_classes=num_classes)
     if torch.cuda.device_count() >= 1:
         print(f"Let's use {torch.cuda.device_count()} GPUs!")
         model = nn.DataParallel(model)
         model = model.to(device)
         model = model.cuda()
-    model.load_state_dict(torch.load('./log/model_Seg_PP3_LR1.2-04.pth'))
+    model.load_state_dict(torch.load('./log/model_UNET_PP3_TL_LR1.2-04.pth'))
     model.eval()
 
     # To store results

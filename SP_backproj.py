@@ -157,20 +157,20 @@ class SP_backproj():
         proj[:, :, 1] = proj_g
         proj[:, :, 2] = proj_b
         # Save the projected mask into label folder
-        if not os.path.exists("./SP/label/"):
+        if not os.path.exists(base_dir + "/2d_label/"):
             # Create the folder if it doesn't exist
-            os.makedirs("./SP/label/")
-        np.savetxt("./SP/label/" + save_label, proj_l)
-        cv2.imwrite('./SP/label/label_image_gt_mask' + '.png', colorized_image*255)
-        cv2.imwrite('./SP/label/label_image'+'.png', proj_l)
+            os.makedirs(base_dir + "/2d_label/")
+        np.savetxt(base_dir + '/2d_label/' + save_label, proj_l)
+        cv2.imwrite(base_dir + '/2d_label/' + 'label_image_gt_mask' + '.png', colorized_image*255)
+        cv2.imwrite(base_dir + '/2d_label/' + 'label_image'+'.png', proj_l)
 
         # Save the projected image into image folder
-        if not os.path.exists("./SP/image/"):
+        if not os.path.exists(base_dir + '/2d_image/'):
             # Create the folder if it doesn't exist
-            os.makedirs("./SP/image/")
+            os.makedirs(base_dir + '/2d_image/')
         plt.imshow(proj)
         plt.axis('off')
-        plt.savefig("./SP/image/" + save_image + '.png', bbox_inches='tight', pad_inches=0)
+        plt.savefig(base_dir + '/2d_image/' + save_image + '.png', bbox_inches='tight', pad_inches=0)
         plt.close()
         return proj
 
@@ -474,12 +474,27 @@ def get_3d_eval_res(predicted_labels, ground_truth_labels):
     print(f"Overall IoU: {overall_iou:.4f}")
     return overall_accuracy, overall_precision, overall_recall, overall_iou
 
-# Get image
-point_cloud = np.loadtxt("/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_2/auditorium_2/room_data/auditorium_2.txt")
-point_label = np.loadtxt("/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_2/auditorium_2/room_data/auditorium_2.label")
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def find_txt_files(base_dir):
+    # List to store paths to all .txt files
+    txt_files = []
+    label_files = []
 
+    # Walk through the base directory
+    for root, dirs, files in os.walk(base_dir):
+        # Check if 'room_data' is in the path
+        if 'room_data' in root:
+            # Iterate over files in the current 'room_data' folder
+            for file in files:
+                if file.endswith('.txt'):
+                    # Append the full path of the .txt file
+                    txt_files.append(os.path.join(root, file))
+                elif file.endswith('.label'):
+                    # Append the full path of the .label file
+                    label_files.append(os.path.join(root, file))
+
+    return txt_files, label_files
 # -------------------------------------------------------------------
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # model = DeepLabV3_Pretrained(num_classes=14).to(device)
 model = UNet(num_classes=14).to(device)
 if torch.cuda.device_count() >= 1:
@@ -492,25 +507,43 @@ if torch.cuda.device_count() >= 1:
 model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_20241109_175124_.pth'))
 model.eval()
 
-bj = SP_backproj(point_cloud, model, gt_label=point_label)
+# ------------------------------------------------------------------------------------
+base_dir = '/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version_Test/'
+scan_files, scan_labels = find_txt_files(base_dir)
+print(len(scan_files))
+# Print all .txt file paths
+for txt_file in scan_files:
+    print(txt_file)
 
+for i in np.arange(len(scan_files)):
+    scan_path = scan_files[i]
+    label_path = scan_labels[i]
 
-images = bj.do_range_projection(save_image="sp", save_label="sp.label", proj_fov_up=110, proj_fov_down=-110, proj_W=512,
-                            proj_H=512, label=point_label)
+    point_cloud = np.loadtxt(scan_path, dtype=np.float32)
+    point_label = np.loadtxt(label_path, dtype=np.float32)
 
+# --------------------------------------------------------------------
+# Get image
+# point_cloud = np.loadtxt("/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_2/auditorium_2/room_data/auditorium_2.txt")
+# point_label = np.loadtxt("/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_2/auditorium_2/room_data/auditorium_2.label")
 
-test_files = [f for f in os.listdir('./SP/label/') if f.endswith('.label')]
-test_dataset = SegmentationDataset(image_folder='./SP/image/', mask_folder='./SP/label/',
+    bj = SP_backproj(point_cloud, model, gt_label=point_label)
+
+    images = bj.do_range_projection(save_image=scan_path.split('/')[-1].replace('.txt', ''), save_label=scan_path.split('/')[-1].replace('txt', 'label'), proj_fov_up=110, proj_fov_down=-110, proj_W=512,
+                                proj_H=512, label=point_label)
+
+test_files = [f for f in os.listdir(base_dir + '/2d_label/') if f.endswith('.label')]
+test_dataset = SegmentationDataset(image_folder=base_dir + '/2d_image/', mask_folder=base_dir + '/2d_label/',
                                         file_list=test_files, transform=get_transforms())
-test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=10, drop_last=True)
-images, masks, preds = get_val_batch(test_dataloader, model)
 
+test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=2, shuffle=False, num_workers=10, drop_last=True)
+images, masks, preds = get_val_batch(test_dataloader, model)
 #-----------------------------------------------------------------------------------------------------------------
 # image_mask = cv2.imread("./SP/label/label_image.png", cv2.IMREAD_GRAYSCALE)
 # image_mask = np.loadtxt("/home/xi/repo/research_2/SP/label/Area_1_0_conferenceRoom_1.label")
 image_mask = masks[0].detach().cpu().float().reshape(masks[0].shape)
 
-# Ensure label_image is on CPU and reshape to match image_mask's shape
+    # Ensure label_image is on CPU and reshape to match image_mask's shape
 label_image = preds[0].detach().cpu().float().reshape(preds[0].shape)
 
 compute_2d_acc(label_image, image_mask)
@@ -525,11 +558,11 @@ colormap = base_colormap(np.linspace(0, 1, num_colors))
 norm = mcolors.Normalize(vmin=np.min(label_image), vmax=np.max(label_image))
 colorized_image = mcolors.ListedColormap(colormap)(norm(label_image))
 
-if not os.path.exists("./SP/Pred/"):
+if not os.path.exists(base_dir + '/Pred/'):
     # Create the folder if it doesn't exist
-    os.makedirs("./SP/Pred/")
+    os.makedirs(base_dir + '/Pred/')
 
-cv2.imwrite('./SP/Pred/' + './label_image_pred'+'.png', colorized_image*255)
+cv2.imwrite(base_dir + '/Pred/' + './label_image_pred'+'.png', colorized_image*255)
 unique_classes = np.unique(label_image)
 print("Unique classes in label prediction image:", unique_classes)
 
