@@ -156,23 +156,23 @@ class SP_backproj():
         proj[:, :, 0] = proj_r
         proj[:, :, 1] = proj_g
         proj[:, :, 2] = proj_b
-        # Save the projected mask into label folder
-        if not os.path.exists(base_dir + "/2d_label/"):
-            # Create the folder if it doesn't exist
-            os.makedirs(base_dir + "/2d_label/")
-        np.savetxt(base_dir + '/2d_label/' + save_label, proj_l)
-        cv2.imwrite(base_dir + '/2d_label/' + 'label_image_gt_mask' + '.png', colorized_image*255)
-        cv2.imwrite(base_dir + '/2d_label/' + 'label_image'+'.png', proj_l)
-
-        # Save the projected image into image folder
-        if not os.path.exists(base_dir + '/2d_image/'):
-            # Create the folder if it doesn't exist
-            os.makedirs(base_dir + '/2d_image/')
-        plt.imshow(proj)
-        plt.axis('off')
-        plt.savefig(base_dir + '/2d_image/' + save_image + '.png', bbox_inches='tight', pad_inches=0)
-        plt.close()
-        return proj
+        # # Save the projected mask into label folder
+        # if not os.path.exists(base_dir + "/2d_label/"):
+        #     # Create the folder if it doesn't exist
+        #     os.makedirs(base_dir + "/2d_label/")
+        # np.savetxt(base_dir + '/2d_label/' + save_label, proj_l)
+        # cv2.imwrite(base_dir + '/2d_label/' + 'label_image_gt_mask' + '.png', colorized_image*255)
+        # cv2.imwrite(base_dir + '/2d_label/' + 'label_image'+'.png', proj_l)
+        #
+        # # Save the projected image into image folder
+        # if not os.path.exists(base_dir + '/2d_image/'):
+        #     # Create the folder if it doesn't exist
+        #     os.makedirs(base_dir + '/2d_image/')
+        # plt.imshow(proj)
+        # plt.axis('off')
+        # plt.savefig(base_dir + '/2d_image/' + save_image + '.png', bbox_inches='tight', pad_inches=0)
+        # plt.close()
+        return proj, proj_l
 
     def project_point_to_2d(self, label_image, proj_W, proj_H, proj_fov_up, proj_fov_down):
         # Laser parameters
@@ -291,7 +291,7 @@ def preprocess_image(image_array):
     transformed_image = transformed_image.unsqueeze(0)
     return transformed_image
 
-def postprocess_output(output, target_size=(1024, 1024)):
+def postprocess_output(output, target_size=(512, 512)):
     """
     Post-process the model output to ensure it has a shape of target_size.
 
@@ -504,9 +504,10 @@ if torch.cuda.device_count() >= 1:
     model = model.cuda()
 # model = VGGSegmentation(num_classes).to(device)
 # model = UNet(num_classes=num_classes).to(device)
-model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_20241109_175124_.pth'))
+model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_UNET_SP1_LR1.2-04.pth'))
 model.eval()
 
+IoU_res = []
 # ------------------------------------------------------------------------------------
 base_dir = '/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version_Test/'
 scan_files, scan_labels = find_txt_files(base_dir)
@@ -521,53 +522,68 @@ for i in np.arange(len(scan_files)):
 
     point_cloud = np.loadtxt(scan_path, dtype=np.float32)
     point_label = np.loadtxt(label_path, dtype=np.float32)
-
-# --------------------------------------------------------------------
-# Get image
+#
+# # --------------------------------------------------------------------
+# # Get image
 # point_cloud = np.loadtxt("/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_2/auditorium_2/room_data/auditorium_2.txt")
 # point_label = np.loadtxt("/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version/Area_2/auditorium_2/room_data/auditorium_2.label")
 
     bj = SP_backproj(point_cloud, model, gt_label=point_label)
 
-    images = bj.do_range_projection(save_image=scan_path.split('/')[-1].replace('.txt', ''), save_label=scan_path.split('/')[-1].replace('txt', 'label'), proj_fov_up=110, proj_fov_down=-110, proj_W=512,
+    images, mask = bj.do_range_projection(save_image=scan_path.split('/')[-1].replace('.txt', ''), save_label=scan_path.split('/')[-1].replace('txt', 'label'), proj_fov_up=110, proj_fov_down=-110, proj_W=512,
                                 proj_H=512, label=point_label)
 
-test_files = [f for f in os.listdir(base_dir + '/2d_label/') if f.endswith('.label')]
-test_dataset = SegmentationDataset(image_folder=base_dir + '/2d_image/', mask_folder=base_dir + '/2d_label/',
-                                        file_list=test_files, transform=get_transforms())
+    # test_files = [f for f in os.listdir(base_dir + '/2d_label/') if f.endswith('.label')]
+    # test_dataset = SegmentationDataset(image_folder=base_dir + '/2d_image/', mask_folder=base_dir + '/2d_label/',
+    #                                         file_list=test_files, transform=get_transforms())
 
-test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=2, shuffle=False, num_workers=10, drop_last=True)
-images, masks, preds = get_val_batch(test_dataloader, model)
-#-----------------------------------------------------------------------------------------------------------------
-# image_mask = cv2.imread("./SP/label/label_image.png", cv2.IMREAD_GRAYSCALE)
-# image_mask = np.loadtxt("/home/xi/repo/research_2/SP/label/Area_1_0_conferenceRoom_1.label")
-image_mask = masks[0].detach().cpu().float().reshape(masks[0].shape)
+    transform = get_transforms()
+    augmented = transform(image=images, mask=mask)
+    image_np, mask = augmented['image'], augmented['mask']
 
-    # Ensure label_image is on CPU and reshape to match image_mask's shape
-label_image = preds[0].detach().cpu().float().reshape(preds[0].shape)
+    # print("image_tensor before:", image_np.shape)
+    # Convert numpy arrays to tensors and ensure correct dimensions
+    image_tensor = torch.from_numpy(image_np.numpy()).float() / 255.0  # [H, W, C] -> [C, H, W]
+    mask_tensor = torch.from_numpy(mask.numpy()).long()  # Ensure m
 
-compute_2d_acc(label_image, image_mask)
+    test_dataset = [{'image': image_tensor, 'mask': mask_tensor}]
+    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=10, drop_last=True)
+    images, masks, preds = get_val_batch(test_dataloader, model)
+    #-----------------------------------------------------------------------------------------------------------------
+    # image_mask = cv2.imread("./SP/label/label_image.png", cv2.IMREAD_GRAYSCALE)
+    # image_mask = np.loadtxt("/home/xi/repo/research_2/SP/label/Area_1_0_conferenceRoom_1.label")
+    image_mask = masks[0].detach().cpu().float().reshape(masks[0].shape)
 
-label_image = postprocess_output(label_image)
+        # Ensure label_image is on CPU and reshape to match image_mask's shape
+    label_image = preds[0].detach().cpu().float().reshape(preds[0].shape)
 
-num_colors = int(np.max(label_image) + 1)
+    compute_2d_acc(label_image, image_mask)
 
-# Define a colormap with the specified number of colors
-base_colormap = plt.get_cmap('viridis')
-colormap = base_colormap(np.linspace(0, 1, num_colors))
-norm = mcolors.Normalize(vmin=np.min(label_image), vmax=np.max(label_image))
-colorized_image = mcolors.ListedColormap(colormap)(norm(label_image))
+    label_image = postprocess_output(label_image)
 
-if not os.path.exists(base_dir + '/Pred/'):
-    # Create the folder if it doesn't exist
-    os.makedirs(base_dir + '/Pred/')
+    num_colors = int(np.max(label_image) + 1)
 
-cv2.imwrite(base_dir + '/Pred/' + './label_image_pred'+'.png', colorized_image*255)
-unique_classes = np.unique(label_image)
-print("Unique classes in label prediction image:", unique_classes)
+    # Define a colormap with the specified number of colors
+    base_colormap = plt.get_cmap('viridis')
+    colormap = base_colormap(np.linspace(0, 1, num_colors))
+    norm = mcolors.Normalize(vmin=np.min(label_image), vmax=np.max(label_image))
+    colorized_image = mcolors.ListedColormap(colormap)(norm(label_image))
+
+    if not os.path.exists(base_dir + '/Pred/'):
+        # Create the folder if it doesn't exist
+        os.makedirs(base_dir + '/Pred/')
+
+    cv2.imwrite(base_dir + '/Pred/' + './label_image_pred'+'.png', colorized_image*255)
+    unique_classes = np.unique(label_image)
+    print("Unique classes in label prediction image:", unique_classes)
 
 
-# extended_points_with_labels = bj.predict_labels_with_knn(label_image, proj_W=512, proj_H=512, proj_fov_up=110, proj_fov_down = -110)
-extended_points_with_labels = bj.predict_labels_with_knn(image_mask, proj_W=512, proj_H=512, proj_fov_up=110, proj_fov_down = -110)
-get_3d_eval_res(extended_points_with_labels[:, -1], point_label)
-visualize_points_with_colored_labels_open3d(extended_points_with_labels)
+    extended_points_with_labels = bj.predict_labels_with_knn(label_image, proj_W=512, proj_H=512, proj_fov_up=110, proj_fov_down = -110)
+    # extended_points_with_labels = bj.predict_labels_with_knn(image_mask, proj_W=512, proj_H=512, proj_fov_up=110, proj_fov_down = -110)
+    _, _, _, IoU = get_3d_eval_res(extended_points_with_labels[:, -1], point_label)
+    IoU_res.append(IoU)
+    # visualize_points_with_colored_labels_open3d(extended_points_with_labels)
+
+
+
+print(np.mean(IoU_res))
