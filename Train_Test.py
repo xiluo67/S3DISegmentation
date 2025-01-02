@@ -1,16 +1,16 @@
 from CNN import *
 # Split the dataset
-image_folder = '/home/xi/repo/conference/PP_Dataset3/image/'
-mask_folder = '/home/xi/repo/conference/PP_Dataset3/label/'
+image_folder = '/home/xi/repo/conference/SP_Dataset1/image/'
+mask_folder = '/home/xi/repo/conference/SP_Dataset1/label/'
 
 train_files, val_files = split_dataset(image_folder, mask_folder)
-test_files = [f for f in os.listdir('/home/xi/repo/conference/PP_Dataset3/label_test/') if f.endswith('.label')]
+test_files = [f for f in os.listdir('/home/xi/repo/conference/SP_Dataset1/label_test/') if f.endswith('.label')]
 print(len(test_files))
 
 # Create datasets
 train_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=train_files, transform=get_transforms())
 val_dataset = SegmentationDataset(image_folder=image_folder, mask_folder=mask_folder, file_list=val_files, transform=get_transforms())
-test_dataset = SegmentationDataset(image_folder='/home/xi/repo/conference/PP_Dataset3/image_test/', mask_folder='/home/xi/repo/conference/PP_Dataset3/label_test/',
+test_dataset = SegmentationDataset(image_folder='/home/xi/repo/conference/SP_Dataset1/image_test/', mask_folder='/home/xi/repo/conference/SP_Dataset1/label_test/',
                                         file_list=test_files, transform=get_transforms())
 
 # Create DataLoaders
@@ -52,7 +52,7 @@ if train:
     # Save the model with timestamp in the filename
     # model_filename = f"model_{timestamp}_" + ".pth"
     # model_path = os.path.join(log_dir, model_filename)
-    model_path = os.path.join(log_dir, "model_UNET_PP3_TL_LR1.2-04.pth")
+    model_path = os.path.join(log_dir, "model_UNET_SP1_TL_LR1.2-04.pth")
     torch.save(model.state_dict(), model_path)
 
     print(f"Model saved to {model_path}")
@@ -80,7 +80,7 @@ else:
         model = nn.DataParallel(model)
         model = model.to(device)
         model = model.cuda()
-    model.load_state_dict(torch.load('./log/model_UNET_PP3_TL_LR1.2-04.pth'))
+    model.load_state_dict(torch.load('./log/model_Seg_TL_SP1_LR1.2-04.pth'))
     model.eval()
 
     # To store results

@@ -92,6 +92,55 @@ class UNet(nn.Module):
         # print(f"Output shape: {out.shape}")
 
         return out
+
+
+def compute_2d_acc(image_pred, image_mask):
+    num_classes = len(np.unique(image_mask))
+    metrics = {
+        "accuracy": 0,
+        "precision": np.zeros(num_classes),
+        "recall": np.zeros(num_classes),
+        "IoU": np.zeros(num_classes)
+    }
+
+    # Flatten arrays for easier computation
+    ground_truth = image_mask.flatten()
+    prediction = image_pred.flatten()
+
+    if isinstance(prediction, torch.Tensor):
+        prediction = prediction.numpy()
+    if isinstance(ground_truth, torch.Tensor):
+        ground_truth = ground_truth.numpy()
+
+    # Overall accuracy
+    metrics["accuracy"] = np.sum(ground_truth == prediction) / ground_truth.size
+
+    overall_TP = 0
+    overall_FP = 0
+    overall_FN = 0
+    # Per-class metrics
+    for cls in range(num_classes):
+        # True Positive (TP): Predicted cls, Ground Truth cls
+        TP = np.sum((prediction == cls) & (ground_truth == cls))
+        overall_TP += TP
+        # False Positive (FP): Predicted cls, Ground Truth is not cls
+        FP = np.sum((prediction == cls) & (ground_truth != cls))
+        overall_FP += FP
+        # False Negative (FN): Ground Truth cls, Predicted is not cls
+        FN = np.sum((prediction != cls) & (ground_truth == cls))
+        overall_FN += FN
+
+        # Calculate Precision, Recall, IoU for each class
+        metrics["precision"][cls] = TP / (TP + FP) if (TP + FP) > 0 else 0
+        metrics["recall"][cls] = TP / (TP + FN) if (TP + FN) > 0 else 0
+        metrics["IoU"][cls] = TP / (TP + FP + FN) if (TP + FP + FN) > 0 else 0
+
+    IoU = overall_TP / (overall_TP + overall_FP + overall_FN) if (overall_TP + overall_FP + overall_FN) > 0 else 0
+
+    print("2D acc is %f", metrics["accuracy"])
+    print("2D Overall IoU is %f", IoU)
+    print("2D IoU is %f", metrics["IoU"])
+
 class points_with_pred_labels():
     def __init__(self):
         # Dictionary to store points and their associated labels
@@ -216,7 +265,6 @@ def complete_labels_with_knn(k, point_cloud):
     print(type(all_points))
     return all_points
 
-
 def postprocess_output(output, target_size=(512, 512)):
     """
     Post-process the model output to ensure it has a shape of target_size.
@@ -338,6 +386,7 @@ def transform_point(point, model_matrix, view_matrix, projection_matrix):
     ndc_coords = np.vstack(
         ((clip_coords[:3, :] / clip_coords[3, :]), point[4, :], point[5, :], point[6, :], point[7, :]))
     return np.transpose(ndc_coords)
+
 def do_mid_pp_projection(points_3d, label, view, fov_value):
     # Room Dimension
     X = np.max(points_3d[:, 1]) - np.min(points_3d[:, 1])
@@ -430,6 +479,7 @@ def do_mid_pp_projection(points_3d, label, view, fov_value):
     # Apply transformations
     preprocessed_image = transform(image_rgb).unsqueeze(0)  # Add batch dimension
 
+
     with torch.no_grad():
         # Ensure the input is a PyTorch tensor
         preprocessed_image = torch.tensor(preprocessed_image, dtype=torch.float32).to(device)
@@ -520,8 +570,6 @@ def do_mid_pp_projection(points_3d, label, view, fov_value):
             key = pack_coordinates(valid_points[indice, 2], valid_points[indice, 0], valid_points[indice, 1])
             # key = (valid_points[indice, 2], valid_points[indice, 0], valid_points[indice, 1])
             point_cloud_dataset.add_point_with_label(key, label_image[y_coords[indice], x_coords[indice]])
-
-
 
 def get_3d_eval_res(predicted_labels, ground_truth_labels):
     # Determine the unique classes from the ground truth labels
@@ -652,7 +700,7 @@ def visualize_points_with_colored_labels_open3d(points):
 for test in range(6):
     do_mid_pp_projection(point_cloud, point_label, test, fov_value=1.6)
 
-points_with_prediction = complete_labels_with_knn(k=5, point_cloud= point_cloud[:, 0:3])
+points_with_prediction = complete_labels_with_knn(k=5, point_cloud=point_cloud[:, 0:3])
 
 for i in range(point_cloud.shape[0]):
     put = pack_coordinates(point_cloud[i, 0], point_cloud[i, 1], point_cloud[i, 2])

@@ -495,8 +495,10 @@ def find_txt_files(base_dir):
     return txt_files, label_files
 # -------------------------------------------------------------------
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# model = DeepLabV3_Pretrained(num_classes=14).to(device)
-model = UNet(num_classes=14).to(device)
+# model = Segformer.to(device)
+# model = UNet(num_classes=14).to(device)
+model = get_pretrianed_unet().to(device)
+# model = SegFormerPretrained(num_classes=num_classes)
 if torch.cuda.device_count() >= 1:
     print(f"Let's use {torch.cuda.device_count()} GPUs!")
     model = nn.DataParallel(model)
@@ -504,7 +506,7 @@ if torch.cuda.device_count() >= 1:
     model = model.cuda()
 # model = VGGSegmentation(num_classes).to(device)
 # model = UNet(num_classes=num_classes).to(device)
-model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_UNET_SP1_LR1.2-04.pth'))
+model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_UNET_SP1_TL_LR1.2-04.pth'))
 model.eval()
 
 IoU_res = []

@@ -20,82 +20,6 @@ Date: 2024.11
 """
 
 # from sympy.strategies.core import switch
-class UNet(nn.Module):
-    def __init__(self, num_classes=14):
-        super(UNet, self).__init__()
-
-        # Encoder (Downsampling path)
-        self.encoder1 = self.conv_block(3, 64)  # Output: [B, 64, 1024, 2048]
-        self.encoder2 = self.conv_block(64, 128)  # Output: [B, 128, 512, 1024]
-        self.encoder3 = self.conv_block(128, 256)  # Output: [B, 256, 256, 512]
-        self.encoder4 = self.conv_block(256, 512)  # Output: [B, 512, 128, 256]
-        self.encoder5 = self.conv_block(512, 1024)  # Output: [B, 1024, 64, 128]
-
-        # Decoder (Upsampling path)
-        self.upconv5 = self.upconv_block(1024, 512)  # Output: [B, 512, 128, 256]
-        self.upconv4 = self.upconv_block(512 + 512, 256)  # Output: [B, 256, 256, 512]
-        self.upconv3 = self.upconv_block(256 + 256, 128)  # Output: [B, 128, 512, 1024]
-        self.upconv2 = self.upconv_block(128 + 128, 64)   # Output: [B, 64, 1024, 2048]
-
-        # Final conv layer to produce the output segmentation map
-        self.final_conv = nn.Conv2d(128, num_classes, kernel_size=1)  # Output: [B, num_classes, 1024, 2048]
-
-    def conv_block(self, in_channels, out_channels):
-        block = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True)
-        )
-        return block
-
-    def upconv_block(self, in_channels, out_channels):
-        block = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        )
-        return block
-
-    def forward(self, x):
-        # print(f"Input shape: {x.shape}")
-
-        # Encoding path
-        e1 = self.encoder1(x)  # [B, 64, 1024, 2048]
-        # print(f"After encoder1: {e1.shape}")
-        e2 = self.encoder2(F.max_pool2d(e1, 2))  # [B, 128, 512, 1024]
-        # print(f"After encoder2: {e2.shape}")
-        e3 = self.encoder3(F.max_pool2d(e2, 2))  # [B, 256, 256, 512]
-        # print(f"After encoder3: {e3.shape}")
-        e4 = self.encoder4(F.max_pool2d(e3, 2))  # [B, 512, 128, 256]
-        # print(f"After encoder4: {e4.shape}")
-        e5 = self.encoder5(F.max_pool2d(e4, 2))  # [B, 1024, 64, 128]
-        # print(f"After encoder5: {e5.shape}")
-
-        # Decoding path
-        d5 = self.upconv5(e5)  # [B, 512, 128, 256]
-        # print(f"After upconv5: {d5.shape}")
-        d5 = torch.cat((d5, e4), dim=1)  # Concatenate skip connection
-        # print(f"After concatenating e4: {d5.shape}")
-        d4 = self.upconv4(d5)  # [B, 256, 256, 512]
-        # print(f"After upconv4: {d4.shape}")
-        d4 = torch.cat((d4, e3), dim=1)  # Concatenate skip connection
-        # print(f"After concatenating e3: {d4.shape}")
-        d3 = self.upconv3(d4)  # [B, 128, 512, 1024]
-        # print(f"After upconv3: {d3.shape}")
-        d3 = torch.cat((d3, e2), dim=1)  # Concatenate skip connection
-        # print(f"After concatenating e2: {d3.shape}")
-        d2 = self.upconv2(d3)  # [B, 64, 1024, 2048]
-        # print(f"After upconv2: {d2.shape}")
-        d2 = torch.cat((d2, e1), dim=1)  # Concatenate skip connection
-        # print(f"After concatenating e1: {d2.shape}")
-
-        out = self.final_conv(d2)  # [B, num_classes, 1024, 2048]
-        # print(f"Output shape: {out.shape}")
-
-        return out
 def look_at(camera_position, target, up):
     forward = np.float_(target - camera_position)
     forward /= np.linalg.norm(forward)
@@ -188,40 +112,19 @@ def transform_point(point, model_matrix, view_matrix, projection_matrix):
         ((clip_coords[:3, :] / clip_coords[3, :]), point[4, :], point[5, :], point[6, :], point[7, :]))
     return np.transpose(ndc_coords)
 
-# Pre-define the view params (location, view angle... ,etc.)
-width, height = 512, 512
-# fov = np.pi / 1.4  # 60 degrees
-near, far = 0.1, 1000
-aspect_ratio = width / height
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = UNet(num_classes=14).to(device)
-if torch.cuda.device_count() >= 1:
-    print(f"Let's use {torch.cuda.device_count()} GPUs!")
-    model = nn.DataParallel(model)
-    model = model.to(device)
-    model = model.cuda()
-model.load_state_dict(torch.load('/home/xi/repo/VGG/log//model_20241015_120101_.pth'))
-model.eval()
-
-
-from sklearn.neighbors import KNeighborsClassifier
-whole_set = []
 def do_perspective_projection(points_3d, label, target_type, fov_number, save_image, save_label, heights, widths, longitudes, ang):
-
     temp = np.zeros(points_3d.shape)
     if (target_type == "left"):
         # angle *= -1
         temp[:, 0:3] = rotate_3d(points_3d[:, 0:3], theta_x=ang, phi_y=0, psi_z=0)
         temp[:, 3:] = points_3d[:, 3:]
 
-
         X = np.max(temp[:, 1]) - np.min(temp[:, 1])
         Y = np.max(temp[:, 2]) - np.min(temp[:, 2])
         Z = np.max(temp[:, 0]) - np.min(temp[:, 0])
-
         camera_position = np.array(
-            [np.min(temp[:, 1]) + X * widths / 9, np.min(temp[:, 2]) + Y * heights / 9, np.min(temp[:, 0]) + Z * longitudes / 9])
+            [np.min(temp[:, 1]) + X * widths * 1 / (val + 1), np.min(temp[:, 2]) + Y * heights / 2,
+             np.min(temp[:, 0]) + Z * longitudes / 4])
         target = camera_position + (-0.1, 0, 0)
         reverse = True
     elif (target_type == "right"):
@@ -233,7 +136,8 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
         Z = np.max(temp[:, 0]) - np.min(temp[:, 0])
 
         camera_position = np.array(
-            [np.min(temp[:, 1]) + X * widths / 9, np.min(temp[:, 2]) + Y * heights / 9, np.min(temp[:, 0]) + Z * longitudes / 9])
+            [np.min(temp[:, 1]) + X * widths / (val + 1), np.min(temp[:, 2]) + Y * heights / 2,
+             np.min(temp[:, 0]) + Z * longitudes / 4])
         target = camera_position + (0.1, 0, 0)
         reverse = True
     elif (target_type == "forward"):
@@ -245,7 +149,8 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
         Z = np.max(temp[:, 0]) - np.min(temp[:, 0])
 
         camera_position = np.array(
-            [np.min(temp[:, 1]) + X * widths / 9, np.min(temp[:, 2]) + Y * heights / 9, np.min(temp[:, 0]) + Z * longitudes / 9])
+            [np.min(temp[:, 1]) + X * widths / (val + 1), np.min(temp[:, 2]) + Y * heights / 2,
+             np.min(temp[:, 0]) + Z * longitudes / 4])
         target = camera_position + (0, 0, 0.1)
         reverse = False
     elif (target_type == "back"):
@@ -257,7 +162,8 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
         Z = np.max(temp[:, 0]) - np.min(temp[:, 0])
 
         camera_position = np.array(
-            [np.min(temp[:, 1]) + X * widths / 9, np.min(temp[:, 2]) + Y * heights / 9, np.min(temp[:, 0]) + Z * longitudes / 9])
+            [np.min(temp[:, 1]) + X * widths / (val + 1), np.min(temp[:, 2]) + Y * heights / 2,
+             np.min(temp[:, 0]) + Z * longitudes / 4])
         target = camera_position + (0, 0, -0.1)
         reverse = False
 
@@ -278,9 +184,12 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
     mask = dot_products > 0
     if (reverse):
         valid_points = valid_points[~mask]
+        original_indices = np.where(~mask)[0]
     else:
         valid_points = valid_points[mask]
+        original_indices = np.where(mask)[0]
 
+    valid_points = np.hstack((valid_points, original_indices[:, np.newaxis]))
     # valid_points = points
     # Transform the point through the whole pipeline
     new_coords = transform_point(np.transpose(valid_points), model_matrix, view_matrix, projection_matrix)
@@ -296,6 +205,8 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
 
     labels = screen_coords[:, 6:].astype(np.uint8)  # Assuming RGB values in uint8 format
 
+    # index = screen_coords[:, -1].astype(np.uint8)
+
     # Calculate the actual dimensions of the image
     img_width = width
     img_height = height
@@ -308,84 +219,151 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
     image[y_coords[valid_indices], x_coords[valid_indices]] = colors[valid_indices]
 
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    if isinstance(image_rgb, np.ndarray):
-        image_rgb = Image.fromarray(image_rgb)
-    else:
-        image_rgb = image_rgb
-    # Define the preprocessing transformations
-    transform = transforms.Compose([
-        transforms.Resize((512, 512)),  # Adjust to match your model input size
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Example normalization
-    ])
-
     proj_l[y_coords[valid_indices], x_coords[valid_indices]] = labels[valid_indices].reshape(-1)
+
+    # if isinstance(image_rgb, np.ndarray):
+    #     image_rgb = Image.fromarray(image_rgb)
+    # else:
+    #     image_rgb = image_rgb
+
+    transform = get_transforms()
+    augmented = transform(image=image_rgb, mask=proj_l)
+    image_np, mask = augmented['image'], augmented['mask']
+
+    # print("image_tensor before:", image_np.shape)
+    # Convert numpy arrays to tensors and ensure correct dimensions
+    image_tensor = torch.from_numpy(image_np.numpy()).float() / 255.0  # [H, W, C] -> [C, H, W]
+    mask_tensor = torch.from_numpy(mask.numpy()).long()  # Ensure m
+
+    test_dataset = [{'image': image_tensor, 'mask': mask_tensor}]
+    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=10,
+                                                  drop_last=True)
+    images, masks, preds = get_val_batch(test_dataloader, model)
+    image_mask = masks[0].detach().cpu().float().reshape(masks[0].shape)
+    label_image = preds[0].detach().cpu().float().reshape(preds[0].shape)
+
+    label_image = postprocess_output(label_image)
+
+    # num_colors = int(np.max(label_image) + 1)
+
+    # Define a colormap with the specified number of colors
+    # base_colormap = plt.get_cmap('viridis')
+    # colormap = base_colormap(np.linspace(0, 1, num_colors))
+    # norm = mcolors.Normalize(vmin=np.min(label_image), vmax=np.max(label_image))
+    # colorized_image = mcolors.ListedColormap(colormap)(norm(label_image))
+
+    # if not os.path.exists(base_dir + '/PP/Pred/'):
+    #     # Create the folder if it doesn't exist
+    #     os.makedirs(base_dir + '/PP/Pred/')
+
+    # cv2.imwrite(base_dir + '/PP/Pred/' + 'label_image_pred' + '.png', colorized_image * 255)
     sub_pred = np.ones((valid_points.shape[0], valid_points.shape[1]-1))
     sub_pred[valid_indices, 0] = valid_points[valid_indices, 2]
     sub_pred[valid_indices, 1] = valid_points[valid_indices, 0]
     sub_pred[valid_indices, 2] = valid_points[valid_indices, 1]
     sub_pred[valid_indices, 3:6] = valid_points[valid_indices, 4:7]
+    sub_pred[valid_indices, 7] = valid_points[valid_indices, -1]
+    sub_pred[valid_indices, 6] = label_image[y_coords[valid_indices], x_coords[valid_indices]]
+    # sub_pred[valid_indices, 6] = proj_l[y_coords[valid_indices], x_coords[valid_indices]]
+    return image_rgb, proj_l, sub_pred[:, 6:]
 
-    # Apply transformations
-    preprocessed_image = transform(image_rgb).unsqueeze(0)  # Add batch dimension
+def postprocess_output(output, target_size=(512, 512)):
+    """
+    Post-process the model output to ensure it has a shape of target_size.
 
-    with torch.no_grad():
-        # Ensure the input is a PyTorch tensor
-        preprocessed_image = torch.tensor(preprocessed_image, dtype=torch.float32).to(device)
-        output = model(preprocessed_image)
+    Args:
+    - output (Tensor): The raw output tensor from the model. Assumes shape [batch_size, num_classes, height, width].
+    - target_size (tuple): The desired output size (height, width).
 
-        # Handle model outputs
-        if isinstance(output, dict):
-            logits = output['out']
-        else:
-            logits = output
+    Returns:
+    - np.ndarray: The processed label image of size target_size.
+    """
+    # Convert output tensor to numpy array
+    output = output.squeeze(0).cpu().detach().numpy()  # Remove batch dimension
 
-    # Convert logits to class predictions
-    label_image = torch.argmax(logits, dim=1).squeeze(0)  # Shape: [batch_size, height, width]
-    # sub_pred[valid_indices, 6] = label_image.cpu()[y_coords[valid_indices], x_coords[valid_indices]]
-    sub_pred[valid_indices, 6] = proj_l[y_coords[valid_indices], x_coords[valid_indices]]
-    whole_set.append(np.transpose(sub_pred))
+    # Get the class prediction for each pixel
+    if output.ndim == 3:  # If the output is [num_classes, height, width]
+        label_image = np.argmax(output, axis=0)  # Shape: [height, width]
+    elif output.ndim == 2:  # If the output is [height, width]
+        label_image = output
+    else:
+        raise ValueError("Unexpected output shape: {}".format(output.shape))
+
+    # Ensure the label_image is in the target size (256, 256)
+    if label_image.shape[:2] != target_size:
+        label_image = cv2.resize(label_image, (target_size[1], target_size[0]), interpolation=cv2.INTER_LINEAR)
+
+    return label_image
+
+param_dict = {
+    'auditorium': [2.2, 2, 1],
+    'office': [1.5, 6, 1],
+    'hallway': [1.2, 2, 1],
+    'conferenceRoom': [1.8, 10, 1],
+    'WC': [1.5, 6, 1],
+    'pantry': [1.5, 6, 1],
+    'storage': [1.2, 4, 1],
+    'lounge': [1.5, 6, 1],
+    'copyRoom': [1.5, 6, 1],
+    'openspace': [1.5, 6, 1],
+    'lobby': [1.2, 2, 1],
+    'default': [1.5, 4, 1]
+}
 
 def gen_the_pp_image(scan, label, scan_path):
-    fov = np.pi / 1.5
+    pred_label = []
+    k = [key for key in param_dict if key in scan_path.split(os.sep)[-3]]
+    if len(k) > 0:
+        k = k[0]
+    else:
+        k = 'default'
+    fov = np.pi / param_dict[k][0]
     for f in np.arange(3):
-        number = f*6 - 6
+        number = f * (param_dict[k][1]) - param_dict[k][1]
         # number = 0
         dataset = scan
-        for h in np.arange(7):
-            for w in np.arange(7):
-                for l in np.arange(7):
+        for h in np.arange(1):
+            for w in np.arange(param_dict[k][2]):
+                for l in np.arange(3):
                     save_label_path = "/home/xi/repo/research_2/PP/label_test/left_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                       scan_path.split(os.sep)[-3] + '.label'
                     save_image_path = "/home/xi/repo/research_2/PP/image_test/left_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                              scan_path.split(os.sep)[-3]
-                    do_perspective_projection(points_3d=scan, label=label, target_type="left", save_image=save_image_path,
+                    _, _, la = do_perspective_projection(points_3d=scan, label=label, target_type="left", save_image=save_image_path,
                                           save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number)
+
+                    pred_label.append(la)
 
                     save_label_path = "/home/xi/repo/research_2/PP/label_test/right_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                  scan_path.split(os.sep)[-3] + '.label'
                     save_image_path = "/home/xi/repo/research_2/PP/image_test/right_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                  scan_path.split(os.sep)[-3]
-                    do_perspective_projection(points_3d=scan, label=label, target_type="right", save_image=save_image_path,
+                    _, _, la = do_perspective_projection(points_3d=scan, label=label, target_type="right", save_image=save_image_path,
                                               save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number)
+
+                    pred_label.append(la)
 
                     save_label_path = "/home/xi/repo/research_2/PP/label_test/forward_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                  scan_path.split(os.sep)[-3] + '.label'
                     save_image_path = "/home/xi/repo/research_2/PP/image_test/forward_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                  scan_path.split(os.sep)[-3]
-                    do_perspective_projection(points_3d=scan, label=label, target_type="forward", save_image=save_image_path,
+                    _, _, la = do_perspective_projection(points_3d=scan, label=label, target_type="forward", save_image=save_image_path,
                                               save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number)
+
+                    pred_label.append(la)
+
                     #
                     save_label_path = "/home/xi/repo/research_2/PP/label_test/back_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                  scan_path.split(os.sep)[-3] + '.label'
                     save_image_path = "/home/xi/repo/research_2/PP/image_test/back_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                  scan_path.split(os.sep)[-3]
-                    do_perspective_projection(points_3d=dataset, label=label, target_type="back", save_image=save_image_path,
+                    _, _, la = do_perspective_projection(points_3d=dataset, label=label, target_type="back", save_image=save_image_path,
                                               save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number)
 
-# base_dir = '/home/xi/repo/3sdis/Stanford3dDataset_v1.2_Aligned_Version/'
-# base_dir = '/home/xi/repo/3sdis/Stanford3dDataset_v1.2_Aligned_Version/Area_1/'
-base_dir = '/home/xi/repo/new/'
+                    pred_label.append(la)
+
+    return proj_mask
+
 def find_txt_files(base_dir):
     # List to store paths to all .txt files
     txt_files = []
@@ -403,8 +381,26 @@ def find_txt_files(base_dir):
                 elif file.endswith('.label'):
                     # Append the full path of the .label file
                     label_files.append(os.path.join(root, file))
-
     return txt_files, label_files
+
+class pj:
+    def __init__(self, cloud):
+        pj.cloud = -np.ones([cloud.shape[0], 7])
+        pj.cloud[:, 0:6] = cloud
+        pj.priority = {'-1': 0, '0': 1, '1': 1, '2': 1, '3': 1, '4': 1, '5': 1, '6': 1, '7': 1, '8': 1, '9': 1, '10': 1, '11': 1, '12': 1, '13': 1}
+
+    def predict_labels(self, labels):
+        for sub in labels:
+            for index, new_label in sub:  # Process each valid point and its label
+                current_label = self.cloud[int(index), -1]  # Assume labels are stored in the last column
+                current_priority = self.priority.get(str(int(current_label)), float('-inf'))
+                new_priority = self.priority.get(str(int(new_label)), float('-inf'))
+
+                # Update the label if the new one has higher priority
+                if new_priority > current_priority:
+                    self.cloud[int(index), -1] = new_label
+
+
 def get_3d_eval_res(predicted_labels, ground_truth_labels):
     # Determine the unique classes from the ground truth labels
     classes = np.unique(ground_truth_labels)
@@ -471,17 +467,57 @@ def get_3d_eval_res(predicted_labels, ground_truth_labels):
         print(f"  Precision: {precision[class_idx]:.4f}")
         print(f"  Recall: {recall[class_idx]:.4f}")
         print(f"  IoU: {iou[class_idx]:.4f}")
-    # Calculate overall accuracy
-    overall_accuracy = global_tp / (global_gt_total) if global_gt_total > 0 else 0.0
+        print()
 
-    # Calculate overall IoU
-    overall_iou = np.sum(iou) / num_classes if num_classes > 0 else 0.0
+    # Compute overall metrics
+    if global_gt_total > 0:
+        overall_accuracy = global_tp / global_gt_total
+    else:
+        overall_accuracy = 0.0
 
-    # Print overall metrics
-    print(f"\nOverall Accuracy: {overall_accuracy:.4f}")
+    if global_tp + global_fp > 0:
+        overall_precision = global_tp / (global_tp + global_fp)
+    else:
+        overall_precision = 0.0
+
+    if global_tp + global_fn > 0:
+        overall_recall = global_tp / (global_tp + global_fn)
+    else:
+        overall_recall = 0.0
+
+    if global_tp + global_fp + global_fn > 0:
+        overall_iou = global_tp / (global_tp + global_fp + global_fn)
+    else:
+        overall_iou = 0.0
+
+    print(f"Overall Accuracy: {overall_accuracy:.4f}")
+    print(f"Overall Precision: {overall_precision:.4f}")
+    print(f"Overall Recall: {overall_recall:.4f}")
     print(f"Overall IoU: {overall_iou:.4f}")
+    return overall_accuracy, overall_precision, overall_recall, overall_iou
+
+from CNN import *
+
+# Pre-define the view params (location, view angle... ,etc.)
+width, height = 512, 512
+# fov = np.pi / 1.4  # 60 degrees
+near, far = 0.1, 1000
+aspect_ratio = width / height
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = UNet(num_classes=14).to(device)
+if torch.cuda.device_count() >= 1:
+    print(f"Let's use {torch.cuda.device_count()} GPUs!")
+    model = nn.DataParallel(model)
+    model = model.to(device)
+    model = model.cuda()
+model.load_state_dict(torch.load('/home/xi/repo/VGG/log/model_UNET_PP3_LR1.2-04.pth'))
+model.eval()
 
 
+IoU_res = []
+# ------------------------------------------------------------------------------------
+base_dir = '/home/xi/repo/Stanford3dDataset_v1.2_Aligned_Version_Test/'
 scan_files, scan_labels = find_txt_files(base_dir)
 
 # Print all .txt file paths
@@ -495,11 +531,13 @@ for i in np.arange(len(scan_files)):
     scan = np.loadtxt(scan_path, dtype=np.float32)
     # scan = scan.reshape((-1, 6))
     label = np.loadtxt(label_path, dtype=np.float32)
-    gen_the_pp_image(scan=scan, label=label, scan_path=scan_path)
+    l = gen_the_pp_image(scan=scan, label=label, scan_path=scan_path)
 
-    stacked_array = np.hstack(whole_set)
-    knn = KNeighborsClassifier(n_neighbors=5)
-    knn.fit(stacked_array[:6, :].T, stacked_array[6, :])
-    pre_l = knn.predict(scan)
+    bj = pj(scan)
+    extended_points_with_labels = bj.predict_labels(l)
+    # extended_points_with_labels = bj.predict_labels(image_mask, proj_W=512, proj_H=512, proj_fov_up=110, proj_fov_down = -110)
+    _, _, _, IoU = get_3d_eval_res(extended_points_with_labels[:, -1], label)
+
+    IoU_res.append(IoU)
     get_3d_eval_res(pre_l, label)
 
