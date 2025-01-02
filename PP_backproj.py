@@ -112,7 +112,7 @@ def transform_point(point, model_matrix, view_matrix, projection_matrix):
         ((clip_coords[:3, :] / clip_coords[3, :]), point[4, :], point[5, :], point[6, :], point[7, :]))
     return np.transpose(ndc_coords)
 
-def do_perspective_projection(points_3d, label, target_type, fov_number, save_image, save_label, heights, widths, longitudes, ang):
+def do_perspective_projection(points_3d, label, target_type, fov_number, save_image, save_label, heights, widths, longitudes, ang, val):
     temp = np.zeros(points_3d.shape)
     if (target_type == "left"):
         # angle *= -1
@@ -236,7 +236,7 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
     mask_tensor = torch.from_numpy(mask.numpy()).long()  # Ensure m
 
     test_dataset = [{'image': image_tensor, 'mask': mask_tensor}]
-    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=10,
+    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0,
                                                   drop_last=True)
     images, masks, preds = get_val_batch(test_dataloader, model)
     image_mask = masks[0].detach().cpu().float().reshape(masks[0].shape)
@@ -265,7 +265,8 @@ def do_perspective_projection(points_3d, label, target_type, fov_number, save_im
     sub_pred[valid_indices, 7] = valid_points[valid_indices, -1]
     sub_pred[valid_indices, 6] = label_image[y_coords[valid_indices], x_coords[valid_indices]]
     # sub_pred[valid_indices, 6] = proj_l[y_coords[valid_indices], x_coords[valid_indices]]
-    return image_rgb, proj_l, sub_pred[:, 6:]
+    # return image_rgb, proj_l, sub_pred[:, 6:]
+    return sub_pred[:, 6:]
 
 def postprocess_output(output, target_size=(512, 512)):
     """
@@ -318,51 +319,49 @@ def gen_the_pp_image(scan, label, scan_path):
     else:
         k = 'default'
     fov = np.pi / param_dict[k][0]
-    for f in np.arange(3):
-        number = f * (param_dict[k][1]) - param_dict[k][1]
-        # number = 0
-        dataset = scan
-        for h in np.arange(1):
-            for w in np.arange(param_dict[k][2]):
-                for l in np.arange(3):
-                    save_label_path = "/home/xi/repo/research_2/PP/label_test/left_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
-                                      scan_path.split(os.sep)[-3] + '.label'
-                    save_image_path = "/home/xi/repo/research_2/PP/image_test/left_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+    number = 0
+    dataset = scan
+    for h in np.arange(1):
+        for w in np.arange(param_dict[k][2]):
+            for l in np.arange(3):
+                save_label_path = "/home/xi/repo/research_2/PP/label_test/left_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                                  scan_path.split(os.sep)[-3] + '.label'
+                save_image_path = "/home/xi/repo/research_2/PP/image_test/left_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                         scan_path.split(os.sep)[-3]
+                pred_label.append(do_perspective_projection(points_3d=scan, label=label, target_type="left", save_image=save_image_path,
+                                      save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number, val=param_dict[k][2]))
+
+                # pred_label.append(la)
+
+                save_label_path = "/home/xi/repo/research_2/PP/label_test/right_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                             scan_path.split(os.sep)[-3] + '.label'
+                save_image_path = "/home/xi/repo/research_2/PP/image_test/right_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                              scan_path.split(os.sep)[-3]
-                    _, _, la = do_perspective_projection(points_3d=scan, label=label, target_type="left", save_image=save_image_path,
-                                          save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number)
+                pred_label.append(do_perspective_projection(points_3d=scan, label=label, target_type="right", save_image=save_image_path,
+                                          save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number, val=param_dict[k][2]))
 
-                    pred_label.append(la)
+                # pred_label.append(la)
 
-                    save_label_path = "/home/xi/repo/research_2/PP/label_test/right_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
-                                 scan_path.split(os.sep)[-3] + '.label'
-                    save_image_path = "/home/xi/repo/research_2/PP/image_test/right_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
-                                 scan_path.split(os.sep)[-3]
-                    _, _, la = do_perspective_projection(points_3d=scan, label=label, target_type="right", save_image=save_image_path,
-                                              save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number)
+                save_label_path = "/home/xi/repo/research_2/PP/label_test/forward_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                             scan_path.split(os.sep)[-3] + '.label'
+                save_image_path = "/home/xi/repo/research_2/PP/image_test/forward_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                             scan_path.split(os.sep)[-3]
+                pred_label.append(do_perspective_projection(points_3d=scan, label=label, target_type="forward", save_image=save_image_path,
+                                          save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number, val=param_dict[k][2]))
 
-                    pred_label.append(la)
+                # pred_label.append(la)
 
-                    save_label_path = "/home/xi/repo/research_2/PP/label_test/forward_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
-                                 scan_path.split(os.sep)[-3] + '.label'
-                    save_image_path = "/home/xi/repo/research_2/PP/image_test/forward_" + str(number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
-                                 scan_path.split(os.sep)[-3]
-                    _, _, la = do_perspective_projection(points_3d=scan, label=label, target_type="forward", save_image=save_image_path,
-                                              save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number)
+                #
+                save_label_path = "/home/xi/repo/research_2/PP/label_test/back_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                             scan_path.split(os.sep)[-3] + '.label'
+                save_image_path = "/home/xi/repo/research_2/PP/image_test/back_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
+                             scan_path.split(os.sep)[-3]
+                pred_label.append(do_perspective_projection(points_3d=dataset, label=label, target_type="back", save_image=save_image_path,
+                                          save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number, val=param_dict[k][2]))
 
-                    pred_label.append(la)
+                # pred_label.append(la)
 
-                    #
-                    save_label_path = "/home/xi/repo/research_2/PP/label_test/back_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
-                                 scan_path.split(os.sep)[-3] + '.label'
-                    save_image_path = "/home/xi/repo/research_2/PP/image_test/back_" + str(-number) + '_' + str(h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
-                                 scan_path.split(os.sep)[-3]
-                    _, _, la = do_perspective_projection(points_3d=dataset, label=label, target_type="back", save_image=save_image_path,
-                                              save_label=save_label_path, heights=h+1, widths=w+1, longitudes=l+1, fov_number=fov, ang=number)
-
-                    pred_label.append(la)
-
-    return proj_mask
+    return pred_label
 
 def find_txt_files(base_dir):
     # List to store paths to all .txt files
@@ -391,7 +390,7 @@ class pj:
 
     def predict_labels(self, labels):
         for sub in labels:
-            for index, new_label in sub:  # Process each valid point and its label
+            for new_label, index in sub:  # Process each valid point and its label
                 current_label = self.cloud[int(index), -1]  # Assume labels are stored in the last column
                 current_priority = self.priority.get(str(int(current_label)), float('-inf'))
                 new_priority = self.priority.get(str(int(new_label)), float('-inf'))
@@ -399,6 +398,7 @@ class pj:
                 # Update the label if the new one has higher priority
                 if new_priority > current_priority:
                     self.cloud[int(index), -1] = new_label
+        return self.cloud
 
 
 def get_3d_eval_res(predicted_labels, ground_truth_labels):
@@ -539,5 +539,6 @@ for i in np.arange(len(scan_files)):
     _, _, _, IoU = get_3d_eval_res(extended_points_with_labels[:, -1], label)
 
     IoU_res.append(IoU)
-    get_3d_eval_res(pre_l, label)
 
+
+print(np.mean(IoU_res))
