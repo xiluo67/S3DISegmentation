@@ -317,10 +317,10 @@ def gen_the_pp_image(scan, label, scan_path):
         for h in np.arange(3):
             for w in np.arange(param_dict[k][2]):
                 for l in np.arange(7):
-                    save_label_path = "/home/rosie/repo/Factory/PP_Dataset/label/left_" + str(fov) + '_' + str(
+                    save_label_path = "/home/rosie/repo/Factory/PP_Dataset/label_test/left_" + str(fov) + '_' + str(
                         h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                       scan_path.split(os.sep)[-3] + '.label'
-                    save_image_path = "/home/rosie/repo/Factory/PP_Dataset/image/left_" + str(fov) + '_' + str(
+                    save_image_path = "/home/rosie/repo/Factory/PP_Dataset/image_test/left_" + str(fov) + '_' + str(
                         h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                       scan_path.split(os.sep)[-3]
                     do_perspective_projection(points_3d=scan, label=label, target_type="left",
@@ -328,10 +328,10 @@ def gen_the_pp_image(scan, label, scan_path):
                                               save_label=save_label_path, heights=h + 1, widths=w + 1, longitudes=l + 1,
                                               fov_number=fov, ang=number, val=param_dict[k][2])
 
-                    save_label_path = "/home/rosie/repo/Factory/PP_Dataset/label/right_" + str(fov) + '_' + str(
+                    save_label_path = "/home/rosie/repo/Factory/PP_Dataset/label_test/right_" + str(fov) + '_' + str(
                         h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                       scan_path.split(os.sep)[-3] + '.label'
-                    save_image_path = "/home/rosie/repo/Factory/PP_Dataset/image/right_" + str(fov) + '_' + str(
+                    save_image_path = "/home/rosie/repo/Factory/PP_Dataset/image_test/right_" + str(fov) + '_' + str(
                         h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                       scan_path.split(os.sep)[-3]
                     do_perspective_projection(points_3d=scan, label=label, target_type="right",
@@ -339,10 +339,10 @@ def gen_the_pp_image(scan, label, scan_path):
                                               save_label=save_label_path, heights=h + 1, widths=w + 1, longitudes=l + 1,
                                               fov_number=fov, ang=number, val=param_dict[k][2])
 
-                    save_label_path = "/home/rosie/repo/Factory/PP_Dataset/label/forward_" + str(fov) + '_' + str(
+                    save_label_path = "/home/rosie/repo/Factory/PP_Dataset/label_test/forward_" + str(fov) + '_' + str(
                         h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                       scan_path.split(os.sep)[-3] + '.label'
-                    save_image_path = "/home/rosie/repo/Factory/PP_Dataset/image/forward_" + str(fov) + '_' + str(
+                    save_image_path = "/home/rosie/repo/Factory/PP_Dataset/image_test/forward_" + str(fov) + '_' + str(
                         h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                       scan_path.split(os.sep)[-3]
                     do_perspective_projection(points_3d=scan, label=label, target_type="forward",
@@ -350,10 +350,10 @@ def gen_the_pp_image(scan, label, scan_path):
                                               save_label=save_label_path, heights=h + 1, widths=w + 1, longitudes=l + 1,
                                               fov_number=fov, ang=number, val=param_dict[k][2])
                     #
-                    save_label_path = "/home/rosie/repo/Factory/PP_Dataset/label/back_" + str(fov) + '_' + str(
+                    save_label_path = "/home/rosie/repo/Factory/PP_Dataset/label_test/back_" + str(fov) + '_' + str(
                         h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                       scan_path.split(os.sep)[-3] + '.label'
-                    save_image_path = "/home/rosie/repo/Factory/PP_Dataset/image/back_" + str(fov) + '_' + str(
+                    save_image_path = "/home/rosie/repo/Factory/PP_Dataset/image_test/back_" + str(fov) + '_' + str(
                         h) + str(w) + str(l) + '_' + scan_path.split(os.sep)[-4] + '_' + \
                                       scan_path.split(os.sep)[-3]
                     do_perspective_projection(points_3d=dataset, label=label, target_type="back",
@@ -363,7 +363,7 @@ def gen_the_pp_image(scan, label, scan_path):
 
 
 # base_dir = '/home/xi/repo/3sdis/Stanford3dDataset_v1.2_Aligned_Version/Area_2'
-base_dir = '/home/rosie/repo/Factory/Train/'
+base_dir = '/home/rosie/repo/Factory/Test/'
 
 
 # base_dir = '/home/xi/repo/3sdis/Stanford3dDataset_v1.2_Aligned_Version_Test/'
