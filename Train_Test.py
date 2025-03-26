@@ -23,7 +23,7 @@ import gc
 torch.cuda.empty_cache()
 gc.collect()
 
-num_classes = 14  # Example number of classes
+num_classes = 15  # Example number of classes
 train = 0
 if train:
     # model = UNet(num_classes=num_classes).to(device)

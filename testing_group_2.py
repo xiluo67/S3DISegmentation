@@ -8,7 +8,7 @@ Date: 2024.11
 
 """
 
-num_classes = 14  # Set this to your specific task
+num_classes = 15  # Set this to your specific task
 
 # get DeepLabV3
 from torchvision import models
