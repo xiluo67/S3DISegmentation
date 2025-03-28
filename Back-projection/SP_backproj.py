@@ -12,7 +12,7 @@ import albumentations as A
 import albumentations.pytorch as A_pytorch
 import open3d as o3d
 # -----------------------------------------------------
-from CNN import *
+from CNNSegmentation.CNN import *
 """
 This file is used for spherical projection back projection process: projecting the predicted 2D 
 image mask back to 3D space.

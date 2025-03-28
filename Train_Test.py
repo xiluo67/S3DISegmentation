@@ -1,4 +1,4 @@
-from CNN import *
+from CNNSegmentation.CNN import *
 # Split the dataset
 image_folder = '/home/xi/repo/conference/SP_Dataset1/image/'
 mask_folder = '/home/xi/repo/conference/SP_Dataset1/label/'

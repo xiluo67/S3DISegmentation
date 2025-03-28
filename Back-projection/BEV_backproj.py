@@ -410,7 +410,7 @@ def point_cloud_2_birdseye(save_mask, height_range, points, R, G, B, label, proj
         sub_pred[poi, 0] = label_image[int((x_img[poi] / y_max) * proj_H), int((y_img[poi] / x_max) * proj_W)]
     return sub_pred
 
-from CNN import *
+from CNNSegmentation.CNN import *
 num_classes = 15
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # model = Segformer.to(device)

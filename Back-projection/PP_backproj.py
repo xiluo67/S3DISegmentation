@@ -524,4 +524,4 @@ def get_3d_eval_res(predicted_labels, ground_truth_labels):
     print(f"Overall IoU: {overall_iou:.4f}")
     return overall_accuracy, overall_precision, overall_recall, overall_iou
 
-from CNN import *
+from CNNSegmentation.CNN import *

@@ -379,7 +379,7 @@ def point_cloud_2_birdseye(save_image, save_label, height_range, points, R,G,B,l
     proj_y = points[:, 0] / np.max(points[:, 0]) * proj_H
     proj_mask = (proj_idx > 0).astype(np.int32)
 
-from PP import *
+from PP2 import *
 
 name = "SP"
 # if all goes well, open point cloud
